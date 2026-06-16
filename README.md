@@ -16,7 +16,8 @@ filling your drive.
   captured interface audio).
 - A **drag-and-drop file analyzer** ("Key & tempo of a file") — drop any
   WAV/AIFF/FLAC/MP3/OGG and get its key and tempo in a second, using the same
-  engine.
+  engine. M4A/AAC (and other formats libsndfile can't open) decode via a
+  bundled/auto-fetched ffmpeg fallback — see below.
 - **Continuous record mode** — alongside the rolling buffer, hit *Record
   continuously* to stream everything straight to disk until you stop. Disk
   writes run on a separate thread so the audio path never glitches.
@@ -70,11 +71,16 @@ self-contained **`Idea Recorder.app`** — Python and every dependency are
 bundled inside, so they just double-click.
 
 PyInstaller can only build for the architecture it runs on, so each Mac chip
-needs its own build:
+needs its own build. Fetch ffmpeg first (for M4A/AAC support in the file
+analyzer — it gets bundled into the app), then build:
 
 ```sh
+./get-ffmpeg.sh        # downloads a static ffmpeg for this arch into vendor/
 ./build-mac-app.sh
 ```
+
+`get-ffmpeg.sh` is optional — skip it and the app still reads
+WAV/AIFF/FLAC/MP3/OGG, just not M4A/AAC.
 
 - Run it on an **Intel** Mac  → `dist/Idea-Recorder-Intel.zip`
 - Run it on an **Apple Silicon** Mac → `dist/Idea-Recorder-AppleSilicon.zip`

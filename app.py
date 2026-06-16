@@ -11,10 +11,13 @@ import argparse
 import datetime
 import io
 import json
+import os
 import queue
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -74,10 +77,58 @@ def key_token(name):
     return tonic.replace("#", "s") + "_" + ("maj" if mode == "major" else "min")
 
 
+def find_ffmpeg():
+    """Locate an ffmpeg binary: bundled with the app, on PATH, or in Homebrew.
+
+    Finder-launched apps get a minimal PATH that misses Homebrew, so the
+    common install locations are checked explicitly.
+    """
+    candidates = [
+        RES / "ffmpeg",                       # bundled inside the .app
+        Path(__file__).resolve().parent / "vendor" / "ffmpeg",  # vendored next to source
+    ]
+    on_path = shutil.which("ffmpeg")
+    if on_path:
+        candidates.append(Path(on_path))
+    candidates += [Path("/opt/homebrew/bin/ffmpeg"), Path("/usr/local/bin/ffmpeg")]
+    for c in candidates:
+        if c and c.exists() and os.access(c, os.X_OK):
+            return str(c)
+    return None
+
+
+def _decode_with_ffmpeg(data):
+    """Fallback decode (anything ffmpeg reads: M4A/AAC, WMA, odd WAVs, …).
+
+    Returns (mono float32 @ 44.1k, sr). M4A/MP4 need a seekable input, so the
+    upload is written to a temp file rather than piped on stdin.
+    """
+    ff = find_ffmpeg()
+    if not ff:
+        raise ValueError("this format needs ffmpeg, which isn't installed")
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        tmp.write(data)
+        path = tmp.name
+    try:
+        out = subprocess.run(
+            [ff, "-v", "error", "-i", path, "-f", "f32le", "-ac", "1", "-ar", "44100", "pipe:1"],
+            capture_output=True)
+        if out.returncode != 0 or not out.stdout:
+            raise ValueError("could not decode this file")
+        return np.frombuffer(out.stdout, dtype="<f4").astype(np.float32), 44100
+    finally:
+        os.unlink(path)
+
+
 def analyze_audio_file(data):
     """Decode an uploaded audio file and return a quick key + tempo estimate."""
-    audio, sr = sf.read(io.BytesIO(data), dtype="float32", always_2d=True)
-    mono = audio.mean(axis=1).astype(np.float32)
+    try:
+        audio, sr = sf.read(io.BytesIO(data), dtype="float32", always_2d=True)
+        mono = audio.mean(axis=1).astype(np.float32)
+        channels = int(audio.shape[1])
+    except Exception:
+        mono, sr = _decode_with_ffmpeg(data)   # M4A/AAC and anything libsndfile can't open
+        channels = 1
     duration = len(mono) / sr if sr else 0
     if len(mono) < sr * 3:
         raise ValueError("clip is shorter than 3 seconds")
@@ -88,7 +139,7 @@ def analyze_audio_file(data):
     return {
         "duration": round(duration, 1),
         "samplerate": int(sr),
-        "channels": int(audio.shape[1]),
+        "channels": channels,
         "bpm": analyzer.estimate_bpm(seg, sr),
         "key": analyzer.estimate_key(seg, sr),
     }
@@ -416,7 +467,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 except Exception:
                     self._json({"error": "Couldn't decode this file. Try "
-                                "WAV, AIFF, FLAC, MP3, or OGG."}, 400)
+                                "WAV, AIFF, FLAC, MP3, M4A, AAC, or OGG."}, 400)
                     return
                 result["filename"] = self.headers.get("X-Filename", "")
                 self._json(result)

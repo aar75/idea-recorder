@@ -27,6 +27,13 @@ if [[ ! -x "$PY" ]]; then
   echo
 fi
 
+# Optional: fetch ffmpeg so the file analyzer can read M4A/AAC too.
+# Best-effort and needs the internet once; everything else works without it.
+if [[ ! -x "vendor/ffmpeg" && -f "get-ffmpeg.sh" ]]; then
+  echo "Fetching ffmpeg for M4A/AAC support (one-time, optional)…"
+  zsh get-ffmpeg.sh >/dev/null 2>&1 || echo "  (skipped — M4A/AAC analysis won't be available)"
+fi
+
 # Open the browser once the server is actually accepting connections.
 ( for i in {1..40}; do
     if curl -s -o /dev/null "http://127.0.0.1:$PORT/"; then

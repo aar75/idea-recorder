@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller spec for the Idea Recorder macOS app.
 # Build:  pyinstaller --noconfirm idea_recorder.spec
+import os
 from PyInstaller.utils.hooks import collect_all
 
 # Pull in the compiled audio libraries (PortAudio via sounddevice,
@@ -14,6 +15,11 @@ for pkg in ("sounddevice", "soundfile"):
 
 # The web UI's static files ship inside the bundle.
 datas += [("static", "static")]
+
+# Bundle a vendored ffmpeg (for M4A/AAC and other formats libsndfile can't
+# read) when present. Run ./get-ffmpeg.sh first to fetch it for this arch.
+if os.path.exists("vendor/ffmpeg"):
+    binaries += [("vendor/ffmpeg", ".")]
 
 a = Analysis(
     ["app.py"],

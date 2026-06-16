@@ -12,6 +12,9 @@ build/
 dist/
 *.spec.bak
 
+# Vendored ffmpeg binary (large, arch-specific — fetch with ./get-ffmpeg.sh)
+vendor/
+
 # Recorded audio (user content)
 captures/*.wav
 rec_*.wav

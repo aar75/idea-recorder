@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments
+.venv/
+.build-venv/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec.bak
+
+# Recorded audio (user content)
+captures/*.wav
+rec_*.wav
+idea_*.wav
+
+# Persisted user settings (lives in $HOME normally, but ignore if copied here)
+.idea_recorder.json
+
+# macOS
+.DS_Store

@@ -1,0 +1,3 @@
+#!/bin/zsh
+# Launcher for the rolling idea recorder. Passes all arguments through.
+exec "${0:a:h}/.venv/bin/python" "${0:a:h}/idea_recorder.py" "$@"

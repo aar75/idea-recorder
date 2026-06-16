@@ -1,0 +1,3 @@
+#!/bin/zsh
+# Launch the idea recorder web UI. Passes all arguments through (e.g. --port).
+exec "${0:a:h}/.venv/bin/python" "${0:a:h}/app.py" "$@"

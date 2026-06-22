@@ -25,3 +25,6 @@ idea_*.wav
 
 # macOS
 .DS_Store
+
+# Editor / harness tooling
+.claude/

@@ -1,0 +1,48 @@
+name: Build macOS app (Apple Silicon)
+
+# Produces a ready-to-run Apple Silicon build of Idea Recorder so collaborators
+# don't need to build it themselves. Run it by hand from the Actions tab
+# (workflow_dispatch), or push a version tag like v1.1.0 to also attach the
+# build to a GitHub Release.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # needed to attach the build to a Release on tag pushes
+
+jobs:
+  build:
+    name: Apple Silicon (.app)
+    # GitHub's macos-14 runners are Apple Silicon (arm64); PyInstaller builds
+    # for the runner's architecture, so this yields a native arm64 app.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build the app
+        run: |
+          chmod +x build-mac-app.sh get-ffmpeg.sh
+          ./build-mac-app.sh
+
+      - name: Confirm it's an arm64 binary
+        run: lipo -archs "dist/app-AppleSilicon/Idea Recorder.app/Contents/MacOS/Idea Recorder"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Idea-Recorder-AppleSilicon
+          path: dist/Idea-Recorder-AppleSilicon.zip
+          if-no-files-found: error
+
+      - name: Attach to release (tag pushes only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Idea-Recorder-AppleSilicon.zip

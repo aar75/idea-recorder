@@ -77,6 +77,27 @@ For friends who shouldn't have to touch a terminal at all, there's a fully
 self-contained **`Idea Recorder.app`** — Python and every dependency are
 bundled inside, so they just double-click.
 
+### Collaborators on Apple Silicon — just download it
+
+You don't need to build anything. GitHub builds a native **Apple Silicon**
+(`arm64`) app for you on every release:
+
+1. Go to the repo's **Actions** tab → **Build macOS app (Apple Silicon)** and
+   click **Run workflow** (or push a `v*` tag to also attach it to a Release).
+2. When it finishes, download **`Idea-Recorder-AppleSilicon.zip`** — from the
+   run's **Artifacts**, or from the **Releases** page for a tagged build.
+3. Unzip it. The app is downloaded from the internet, so macOS quarantines it on
+   first open. Either **right-click → Open** once (then *Open* in the dialog),
+   or clear the quarantine flag in Terminal:
+
+   ```sh
+   xattr -dr com.apple.quarantine "Idea Recorder.app"
+   ```
+
+That's the whole flow — no Python, no Xcode, no `pip`.
+
+### Building it yourself
+
 PyInstaller can only build for the architecture it runs on, so each Mac chip
 needs its own build:
 

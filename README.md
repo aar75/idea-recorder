@@ -14,6 +14,13 @@ filling your drive.
 - **Live key & tempo detection** on whatever's coming in, updated a few times a
   second (ported from the Session Prep analyzer; runs server-side on the
   captured interface audio).
+- **Tuning vs 440 readout** — measures how many cents the incoming material sits
+  from A=440 (and the equivalent A reference, e.g. A≈443.1), so you know exactly
+  how far to pitch a beat to line up with a 440 tuner before tracking over it.
+- A **standalone live tuner** — pick any one input channel of your interface and
+  get a chromatic tuner: nearest note, cents sharp/flat, and a needle against a
+  ±50¢ scale, all referenced to A=440. Runs on its own audio stream, independent
+  of the recorder.
 - A **drag-and-drop file analyzer** ("Key & tempo of a file") — drop any
   WAV/AIFF/FLAC/MP3/OGG and get its key and tempo in a second, using the same
   engine. M4A/AAC (and other formats libsndfile can't open) decode via a
@@ -71,19 +78,20 @@ self-contained **`Idea Recorder.app`** — Python and every dependency are
 bundled inside, so they just double-click.
 
 PyInstaller can only build for the architecture it runs on, so each Mac chip
-needs its own build. Fetch ffmpeg first (for M4A/AAC support in the file
-analyzer — it gets bundled into the app), then build:
+needs its own build:
 
 ```sh
-./get-ffmpeg.sh        # downloads a static ffmpeg for this arch into vendor/
 ./build-mac-app.sh
 ```
 
-`get-ffmpeg.sh` is optional — skip it and the app still reads
-WAV/AIFF/FLAC/MP3/OGG, just not M4A/AAC.
+The script fetches a matching static ffmpeg (for M4A/AAC support in the file
+analyzer) into `vendor/` automatically, re-fetching if a leftover binary is the
+wrong architecture, and aborts if the finished app's binary doesn't match the
+build machine. If the ffmpeg download fails the app still builds and reads
+WAV/AIFF/FLAC/MP3/OGG — just not M4A/AAC.
 
-- Run it on an **Intel** Mac  → `dist/Idea-Recorder-Intel.zip`
-- Run it on an **Apple Silicon** Mac → `dist/Idea-Recorder-AppleSilicon.zip`
+- Run it on an **Intel** Mac  → `dist/Idea-Recorder-Intel.zip` (x86_64)
+- Run it on an **Apple Silicon** Mac → `dist/Idea-Recorder-AppleSilicon.zip` (arm64)
 
 To produce the Apple Silicon build, copy this folder to an M-series Mac and run
 the same script there. Each app is ad-hoc signed, so on first open a downloaded

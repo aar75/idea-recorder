@@ -28,7 +28,7 @@ import sounddevice as sd
 import soundfile as sf
 
 from idea_recorder import RingBuffer
-from live_analysis import LiveAnalyzer
+from live_analysis import LiveAnalyzer, detect_pitch, note_from_freq
 
 FROZEN = getattr(sys, "frozen", False)
 if FROZEN:
@@ -142,6 +142,7 @@ def analyze_audio_file(data):
         "channels": channels,
         "bpm": analyzer.estimate_bpm(seg, sr),
         "key": analyzer.estimate_key(seg, sr),
+        "tuning": analyzer.estimate_tuning(seg, sr),
     }
 
 
@@ -218,7 +219,8 @@ class Recorder:
                     continue
                 bpm = analyzer.estimate_bpm(mono, samplerate)
                 key = analyzer.estimate_key(mono[-int(samplerate * 4):], samplerate)
-                self.analysis = {"bpm": bpm, "key": key}
+                tuning = analyzer.estimate_tuning(mono[-int(samplerate * 4):], samplerate)
+                self.analysis = {"bpm": bpm, "key": key, "tuning": tuning}
             except Exception as e:
                 self.analysis = {"error": str(e)}
 
@@ -346,7 +348,119 @@ class Recorder:
             }
 
 
+class Tuner:
+    """Standalone chromatic tuner on one chosen input channel.
+
+    Runs its own short-buffer InputStream (independent of the recorder) so the
+    user can tune a single interface input — a guitar, bass, or vocal — and see
+    the nearest note plus its cents offset from A=440 in real time.
+    """
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.stream = None
+        self.ring = None
+        self.device_name = None
+        self.samplerate = None
+        self.channel = 0
+        self.max_channels = 0
+        self.level = 0.0
+        self.reading = None
+        self._midi_ema = None     # smoothed pitch (in MIDI) for a steady needle
+        self._miss = 0            # consecutive no-pitch reads, to clear on silence
+        self._stop = None
+
+    def start(self, device, channel):
+        with self.lock:
+            self._stop_locked()
+            info = sd.query_devices(device, "input")
+            sr = int(info["default_samplerate"])
+            maxch = int(info["max_input_channels"])
+            ch = max(0, min(int(channel or 0), maxch - 1))
+            ring = RingBuffer(int(sr * 0.5), 1)   # half a second is plenty to tune
+
+            def callback(indata, frames, time_info, status):
+                col = indata[:, ch] if indata.shape[1] > ch else indata[:, 0]
+                ring.write(col.reshape(-1, 1))
+                if frames:
+                    self.level = float(np.max(np.abs(col)))
+
+            stream = sd.InputStream(device=device, channels=maxch,
+                                    samplerate=sr, dtype="float32",
+                                    callback=callback)
+            stream.start()
+            self.stream = stream
+            self.ring = ring
+            self.device_name = info["name"]
+            self.samplerate = sr
+            self.channel = ch
+            self.max_channels = maxch
+            self.level = 0.0
+            self.reading = None
+            self._midi_ema = None
+            self._miss = 0
+
+            stop_evt = threading.Event()
+            self._stop = stop_evt
+            threading.Thread(target=self._loop, args=(ring, sr, stop_evt),
+                             daemon=True).start()
+
+    def _loop(self, ring, sr, stop_evt):
+        while not stop_evt.wait(0.08):           # ~12 Hz, snappy for tuning
+            try:
+                mono = ring.latest_mono(int(sr * 0.12))
+                p = detect_pitch(mono, sr)
+                if p is None:
+                    self._miss += 1
+                    if self._miss > 6:           # ~0.5s quiet → clear the readout
+                        self._midi_ema = None
+                        self.reading = None
+                    continue
+                self._miss = 0
+                midi = 69 + 12 * np.log2(p["freq"] / 440.0)
+                if self._midi_ema is None or abs(midi - self._midi_ema) > 0.6:
+                    self._midi_ema = midi         # snap when a new note is played
+                else:
+                    self._midi_ema = 0.6 * self._midi_ema + 0.4 * midi
+                freq = 440.0 * 2 ** ((self._midi_ema - 69) / 12.0)
+                r = note_from_freq(freq)
+                r["freq"] = round(float(freq), 2)
+                r["clarity"] = p["clarity"]
+                self.reading = r
+            except Exception as e:
+                self.reading = {"error": str(e)}
+
+    def _stop_locked(self):
+        if self._stop is not None:
+            self._stop.set()
+            self._stop = None
+        if self.stream is not None:
+            self.stream.stop()
+            self.stream.close()
+            self.stream = None
+        self.level = 0.0
+        self.reading = None
+
+    def stop(self):
+        with self.lock:
+            self._stop_locked()
+
+    def status(self):
+        with self.lock:
+            running = self.stream is not None
+            return {
+                "running": running,
+                "device": self.device_name if running else None,
+                "channel": self.channel if running else None,
+                "max_channels": self.max_channels if running else None,
+                "samplerate": self.samplerate if running else None,
+                "level": self.level if running else 0.0,
+                "reading": self.reading if running else None,
+            }
+
+
 recorder = Recorder()
+tuner = Tuner()
 
 
 def list_devices():
@@ -406,13 +520,15 @@ class Handler(BaseHTTPRequestHandler):
             self._serve_file(STATIC / "index.html", "text/html")
         elif path == "/api/devices":
             # Re-scan for hot-plugged interfaces, but a PortAudio re-init
-            # would kill a live stream, so only do it while stopped.
-            if recorder.stream is None:
+            # would kill a live stream, so only do it while everything's stopped.
+            if recorder.stream is None and tuner.stream is None:
                 sd._terminate()
                 sd._initialize()
             self._json(list_devices())
         elif path == "/api/status":
             self._json(recorder.status())
+        elif path == "/api/tuner/status":
+            self._json(tuner.status())
         elif path == "/api/info":
             self._json({"captures_dir": str(CAPTURES)})
         elif path == "/api/captures":
@@ -438,6 +554,14 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/api/stop":
                 recorder.stop()
                 self._json(recorder.status())
+            elif self.path == "/api/tuner/start":
+                body = self._read_body()
+                tuner.start(device=int(body["device"]),
+                            channel=int(body.get("channel") or 0))
+                self._json(tuner.status())
+            elif self.path == "/api/tuner/stop":
+                tuner.stop()
+                self._json(tuner.status())
             elif self.path == "/api/save":
                 name, duration = recorder.save()
                 self._json({"saved": name, "duration": round(duration, 1)})
@@ -554,6 +678,7 @@ def main():
         server.serve_forever()
     except KeyboardInterrupt:
         recorder.stop()
+        tuner.stop()
 
 
 if __name__ == "__main__":

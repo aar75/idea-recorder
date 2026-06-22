@@ -137,6 +137,45 @@
   .liveSub { font-size: 11px; color: var(--dim); margin-top: 3px; }
   .liveCard.locked { border-color: rgba(91,108,255,.4); background: var(--accent-soft); }
   .liveCard.locked .liveSub { color: var(--accent); font-weight: 600; }
+  .liveWide { grid-column: 1 / -1; }
+
+  /* live tuner */
+  #tunerToggle {
+    background: var(--accent); color: #fff; border-color: transparent;
+    box-shadow: 0 4px 14px rgba(91, 108, 255, .25);
+  }
+  #tunerToggle:hover { background: #4a5bff; }
+  #tunerToggle.live {
+    background: var(--accent-soft); color: var(--accent);
+    border-color: rgba(91, 108, 255, .35); box-shadow: none;
+  }
+  .tuner { margin-top: 18px; text-align: center; }
+  .tunerNote {
+    font-size: 60px; font-weight: 800; letter-spacing: -.03em; line-height: 1;
+    color: var(--dim); transition: color .15s;
+  }
+  .tuner.lit .tunerNote { color: var(--text); }
+  .tunerNote .tunerOct { font-size: 22px; font-weight: 700; color: var(--dim); margin-left: 3px; vertical-align: super; }
+  .tunerCents { font-size: 14px; font-weight: 700; color: var(--dim); margin-top: 5px; min-height: 18px; letter-spacing: .01em; }
+  .tuner.intune .tunerCents { color: var(--green); }
+  .tuner.flat .tunerCents, .tuner.sharp .tunerCents { color: var(--rec); }
+  .tunerScale {
+    position: relative; height: 46px; margin: 16px 0 5px;
+    border-radius: 12px; background: var(--panel2); border: 1px solid var(--border); overflow: hidden;
+  }
+  .tunerZone { position: absolute; top: 0; bottom: 0; left: 45%; width: 10%; background: rgba(20, 201, 142, .12); }
+  .tunerCenter { position: absolute; left: 50%; top: 6px; bottom: 6px; width: 2px; background: #cfd6ea; transform: translateX(-50%); }
+  .tuner.intune .tunerCenter { background: var(--green); }
+  .tunerNeedle {
+    position: absolute; top: 4px; bottom: 4px; left: 50%; width: 4px;
+    background: var(--accent); border-radius: 3px; transform: translateX(-50%);
+    box-shadow: 0 0 0 4px rgba(91, 108, 255, .12);
+    transition: left .09s linear, background .15s, opacity .15s; opacity: .25;
+  }
+  .tuner.intune .tunerNeedle { background: var(--green); box-shadow: 0 0 0 4px rgba(20, 201, 142, .16); }
+  .tuner.flat .tunerNeedle, .tuner.sharp .tunerNeedle { background: var(--rec); box-shadow: 0 0 0 4px rgba(255, 77, 109, .14); }
+  .tunerScaleLabels { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); }
+  .tunerFreq { font-size: 12px; color: var(--dim); margin-top: 9px; font-variant-numeric: tabular-nums; }
 
   /* continuous record toggle */
   .recordBtn {
@@ -289,6 +328,11 @@
         <div class="liveVal"><span id="liveBpm">—</span><span class="liveUnit" id="liveBpmUnit"></span></div>
         <div class="liveSub" id="liveBpmSub">listening…</div>
       </div>
+      <div class="liveCard liveWide">
+        <div class="liveLabel">Tuning vs 440</div>
+        <div class="liveVal"><span id="liveCents">—</span><span class="liveUnit" id="liveCentsUnit"></span></div>
+        <div class="liveSub" id="liveCentsSub">listening…</div>
+      </div>
     </div>
   </div>
 
@@ -296,6 +340,36 @@
   <button id="recordBtn" class="recordBtn" disabled>
     <span class="recDot"></span><span id="recordLabel">Record continuously</span>
   </button>
+
+  <h2>Live tuner</h2>
+  <div class="panel">
+    <div class="row">
+      <div class="field grow">
+        <label for="tunerDevice">Input device</label>
+        <select id="tunerDevice"></select>
+      </div>
+      <div class="field">
+        <label for="tunerChannel">Channel</label>
+        <select id="tunerChannel"></select>
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="tunerToggle">Start tuner</button>
+      <span class="meta" id="tunerInfo" style="color:var(--dim);font-size:12px"></span>
+    </div>
+
+    <div id="tunerDisplay" class="tuner" hidden>
+      <div class="tunerNote"><span id="tunerNote">—</span><span class="tunerOct" id="tunerOct"></span></div>
+      <div class="tunerCents" id="tunerCentsTxt">play a note</div>
+      <div class="tunerScale">
+        <div class="tunerZone"></div>
+        <div class="tunerCenter"></div>
+        <div class="tunerNeedle" id="tunerNeedle"></div>
+      </div>
+      <div class="tunerScaleLabels"><span>−50¢</span><span>0</span><span>+50¢</span></div>
+      <div class="tunerFreq" id="tunerFreq"></div>
+    </div>
+  </div>
 
   <h2>Captures</h2>
   <div class="savePath" id="savePath" hidden>
@@ -319,6 +393,7 @@
       <div class="dropVals">
         <div class="dropVal"><span class="dvLabel">Key</span><span class="dvNum" id="fKey">—</span></div>
         <div class="dropVal"><span class="dvLabel">Tempo</span><span class="dvNum" id="fBpm">—</span></div>
+        <div class="dropVal"><span class="dvLabel">Tuning vs 440</span><span class="dvNum" id="fCents">—</span></div>
       </div>
       <button class="ghostBtn" id="dropAnother">Analyze another</button>
     </div>
@@ -350,18 +425,40 @@ function toast(msg, isError) {
   t._timer = setTimeout(() => t.classList.remove("show"), 2600);
 }
 
-async function loadDevices() {
-  const devices = await api("/api/devices");
-  const sel = $("device");
-  const remembered = localStorage.getItem("idea-recorder-device");
+let deviceList = [];
+
+function fillDeviceSelect(sel, storeKey) {
+  const remembered = localStorage.getItem(storeKey);
   sel.innerHTML = "";
-  for (const d of devices) {
+  for (const d of deviceList) {
     const opt = document.createElement("option");
     opt.value = d.index;
     opt.textContent = `${d.name} (${d.channels} ch)`;
     if (remembered ? d.name === remembered : d.default) opt.selected = true;
     sel.appendChild(opt);
   }
+}
+
+function fillTunerChannels() {
+  const csel = $("tunerChannel");
+  const dev = deviceList.find(d => String(d.index) === $("tunerDevice").value);
+  const n = dev ? dev.channels : 1;
+  const remembered = +(localStorage.getItem("idea-recorder-tuner-channel") || 0);
+  csel.innerHTML = "";
+  for (let i = 0; i < n; i++) {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = "Input " + (i + 1);
+    if (i === remembered) opt.selected = true;
+    csel.appendChild(opt);
+  }
+}
+
+async function loadDevices() {
+  deviceList = await api("/api/devices");
+  fillDeviceSelect($("device"), "idea-recorder-device");
+  fillDeviceSelect($("tunerDevice"), "idea-recorder-tuner-device");
+  fillTunerChannels();
 }
 
 function setRunningUI(status) {
@@ -396,6 +493,9 @@ function resetLive() {
   $("liveBpm").textContent = "—";
   $("liveBpmUnit").textContent = "";
   $("liveBpmSub").textContent = "listening…";
+  $("liveCents").textContent = "—";
+  $("liveCentsUnit").textContent = "";
+  $("liveCentsSub").textContent = "listening…";
   document.querySelectorAll(".liveCard").forEach(c => c.classList.remove("locked"));
 }
 
@@ -414,6 +514,17 @@ function updateLive(analysis) {
     $("liveBpmUnit").textContent = "BPM";
     $("liveBpmSub").textContent = b.locked ? "locked" : "estimating…";
     bpmCard.classList.toggle("locked", !!b.locked);
+  }
+  const t = analysis.tuning;
+  const tuneCard = $("liveCents").closest(".liveCard");
+  if (t && typeof t.cents === "number") {
+    const c = Math.round(t.cents);
+    $("liveCents").textContent = (c > 0 ? "+" : c < 0 ? "−" : "") + Math.abs(c);
+    $("liveCentsUnit").textContent = "¢";
+    const move = c === 0 ? "already at 440"
+                 : "pitch beat " + (c > 0 ? "−" : "+") + Math.abs(c) + "¢ to hit 440";
+    $("liveCentsSub").textContent = "≈ A " + t.hz.toFixed(1) + " Hz · " + move;
+    tuneCard.classList.toggle("locked", (t.confidence || 0) >= 0.5);
   }
 }
 
@@ -539,6 +650,75 @@ $("toggle").onclick = async () => {
 
 $("refresh").onclick = () => loadDevices().catch(e => toast(e.message, true));
 
+// ---- live tuner ----
+let tunerRunning = false;
+
+$("tunerDevice").onchange = fillTunerChannels;
+
+function setTunerUI(st) {
+  tunerRunning = !!st.running;
+  $("tunerToggle").textContent = tunerRunning ? "Stop tuner" : "Start tuner";
+  $("tunerToggle").classList.toggle("live", tunerRunning);
+  $("tunerDevice").disabled = tunerRunning;
+  $("tunerChannel").disabled = tunerRunning;
+  $("tunerDisplay").hidden = !tunerRunning;
+  $("tunerInfo").textContent = tunerRunning
+    ? `${st.device} · input ${(st.channel || 0) + 1} @ ${st.samplerate} Hz` : "";
+  if (!tunerRunning) updateTuner(null);
+}
+
+function updateTuner(st) {
+  const disp = $("tunerDisplay");
+  const r = st && st.reading;
+  if (r && typeof r.cents === "number") {
+    const cents = r.cents, a = Math.round(Math.abs(cents));
+    let label, cls;
+    if (a <= 5) { label = "in tune"; cls = "intune"; }
+    else if (cents < 0) { label = a + "¢ flat"; cls = "flat"; }
+    else { label = a + "¢ sharp"; cls = "sharp"; }
+    $("tunerNote").textContent = r.note;
+    $("tunerOct").textContent = r.octave;
+    $("tunerCentsTxt").textContent = label;
+    $("tunerFreq").textContent = r.freq.toFixed(1) + " Hz · target " + r.target_hz.toFixed(1) + " Hz";
+    $("tunerNeedle").style.left = Math.max(0, Math.min(100, 50 + cents)) + "%";
+    $("tunerNeedle").style.opacity = 1;
+    disp.className = "tuner lit " + cls;
+  } else {
+    $("tunerNote").textContent = "—";
+    $("tunerOct").textContent = "";
+    $("tunerCentsTxt").textContent = "play a note";
+    $("tunerFreq").textContent = "";
+    $("tunerNeedle").style.left = "50%";
+    $("tunerNeedle").style.opacity = .25;
+    disp.className = "tuner";
+  }
+}
+
+async function tunerPoll() {
+  if (!tunerRunning) return;
+  try {
+    const st = await api("/api/tuner/status");
+    updateTuner(st);
+    if (!st.running) setTunerUI(st);
+  } catch (e) { /* keep polling */ }
+}
+
+$("tunerToggle").onclick = async () => {
+  try {
+    if (tunerRunning) {
+      setTunerUI(await api("/api/tuner/stop", {}));
+    } else {
+      const ch = +$("tunerChannel").value || 0;
+      const st = await api("/api/tuner/start", {
+        device: +$("tunerDevice").value, channel: ch });
+      localStorage.setItem("idea-recorder-tuner-device",
+        $("tunerDevice").selectedOptions[0].textContent.replace(/ \(\d+ ch\)$/, ""));
+      localStorage.setItem("idea-recorder-tuner-channel", ch);
+      setTunerUI(st);
+    }
+  } catch (e) { toast(e.message, true); }
+};
+
 $("openFolder").onclick = () => api("/api/reveal", {}).catch(e => toast(e.message, true));
 
 $("changeFolder").onclick = async () => {
@@ -659,6 +839,14 @@ function showFileResult(name, data) {
   const k = data.key, b = data.bpm;
   $("fKey").textContent = (k && k.key && k.key !== "—") ? k.key : "—";
   $("fBpm").innerHTML = (b && b.bpm) ? b.bpm.toFixed(1) + "<small>BPM</small>" : "—";
+  const t = data.tuning;
+  if (t && typeof t.cents === "number") {
+    const c = Math.round(t.cents);
+    const sign = c > 0 ? "+" : c < 0 ? "−" : "";
+    $("fCents").innerHTML = sign + Math.abs(c) + "<small>¢ · A " + t.hz.toFixed(1) + "</small>";
+  } else {
+    $("fCents").textContent = "—";
+  }
   $("dropInner").querySelector(".dropText").innerHTML = DROP_PROMPT;
 }
 
@@ -667,8 +855,10 @@ function showFileResult(name, data) {
   await loadInfo();
   const s = await api("/api/status");
   setRunningUI(s);
+  setTunerUI(await api("/api/tuner/status"));
   renderCaptures();
   setInterval(poll, 150);
+  setInterval(tunerPoll, 90);
 })().catch(e => toast(e.message, true));
 </script>
 </body>

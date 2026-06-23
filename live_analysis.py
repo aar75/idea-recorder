@@ -203,9 +203,12 @@ def _bpm_from_flux(flux, fps, lo=50, hi=210):
     max_lag = min(n - 8, int(np.ceil(60 / lo * fps)))
     if max_lag <= min_lag:
         return None
+    # Biased autocorrelation (no 1/(n-lag) compensation): for a periodic signal
+    # the true period has more overlapping terms than its multiples, so this
+    # favours the actual tempo instead of drifting to a slower sub-octave.
     ac = np.zeros(max_lag + 1)
     for lag in range(min_lag, max_lag + 1):
-        ac[lag] = float(np.dot(f[:n - lag], f[lag:])) / (e0 * (n - lag) / n)
+        ac[lag] = float(np.dot(f[:n - lag], f[lag:])) / e0
     best_lag = int(np.argmax(ac[min_lag:max_lag + 1])) + min_lag
     best_val = ac[best_lag]
     if best_val < 0.05:
@@ -222,17 +225,18 @@ def _bpm_from_flux(flux, fps, lo=50, hi=210):
     return float(60 * fps / lag), float(best_val)
 
 
-def _fold_to_octave(bpm, ref):
-    """Halve/double bpm until it sits in the same tempo octave as ref.
+def _fold_bpm(bpm, lo=70.0, hi=185.0):
+    """Halve/double bpm into a fixed display octave [lo, hi).
 
-    Snaps half-/double-time detection jitter onto the overall tempo so it
-    doesn't masquerade as a tempo change.
+    A fixed range (not one relative to an 'overall' tempo) is what keeps
+    genuinely different tempos distinct — folding toward a single reference
+    would pull anything more than ~√2 away into the same octave and merge it.
     """
     if bpm <= 0:
         return bpm
-    while bpm < ref / 1.41:
+    while bpm < lo:
         bpm *= 2
-    while bpm > ref * 1.41:
+    while bpm >= hi:
         bpm /= 2
     return bpm
 
@@ -431,23 +435,20 @@ class LiveAnalyzer:
         }
 
     # ---- tempo map over time -------------------------------------------
-    def tempo_map(self, x, sr, win_s=8.0, hop_s=2.0, min_seg_s=12.0):
+    def tempo_map(self, x, sr, win_s=6.0, hop_s=2.0, min_seg_s=8.0):
         """Segment a file into stable tempo regions and flag obvious changes.
 
-        Estimates BPM in a sliding window, folds each estimate into the overall
-        tempo's octave (so half-/double-time jitter doesn't read as a change),
-        snaps anything within tolerance to the overall tempo, then dissolves
-        short regions and merges neighbours that differ by less than the
-        tolerance — so only sustained, clearly different tempos register.
+        Estimates BPM in a sliding window, folds each estimate into a *fixed*
+        display octave (so the same tempo always lands on one value and distinct
+        tempos stay distinct), then suppresses false changes with majority-vote
+        smoothing, a minimum region length, and merging of neighbours that
+        differ by less than the tolerance — so several genuine changes all show,
+        but jitter and brief passages don't.
         """
         flux, fps = _flux_envelope(x, sr)
         duration = len(x) / sr
-        overall = _bpm_from_flux(flux, fps) if flux is not None else None
-        if overall is None:
+        if flux is None:
             return None
-        # fold the overall into the usual 70–185 display octave
-        overall_bpm = _fold_to_octave(overall[0], 120.0)
-        tol = max(3.0, 0.03 * overall_bpm)
 
         win_f = max(16, int(round(win_s * fps)))
         step_f = max(1, int(round(hop_s * fps)))
@@ -458,15 +459,16 @@ class LiveAnalyzer:
             a, b = max(0, center - half), min(n, center + half)
             res = _bpm_from_flux(flux[a:b], fps)
             times.append(center / fps)
-            if res is None:
-                bpms.append(None)
-                continue
-            bpm = _fold_to_octave(res[0], overall_bpm)
-            if abs(bpm - overall_bpm) <= tol:      # favour the overall tempo
-                bpm = overall_bpm
-            bpms.append(bpm)
-        # fill gaps (silent windows) with the overall tempo
-        bpms = [overall_bpm if v is None else v for v in bpms]
+            bpms.append(_fold_bpm(res[0]) if res is not None else None)
+
+        valid = [v for v in bpms if v is not None]
+        if not valid:
+            return None
+        # the overall tempo is the most typical window tempo, not a single
+        # whole-file autocorrelation (which is unreliable across several tempos)
+        overall_bpm = float(np.median(valid))
+        tol = max(3.0, 0.03 * overall_bpm)
+        bpms = [overall_bpm if v is None else v for v in bpms]   # fill silent gaps
 
         one_segment = {
             "overall": round(overall_bpm, 1),
@@ -478,7 +480,8 @@ class LiveAnalyzer:
         if len(bpms) <= 1:
             return one_segment
 
-        labels = _mode_filter([round(v) for v in bpms], 3)
+        # quantise to 2-BPM bins so tiny estimation wobble groups together
+        labels = _mode_filter([round(v / 2.0) * 2 for v in bpms], 3)
         labels = _enforce_min_run(labels, max(1, int(round(min_seg_s / hop_s))))
 
         # build segments, representative BPM = median of the window BPMs in the run

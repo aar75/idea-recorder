@@ -49,8 +49,9 @@ filling your drive.
   downloads the paired video, and deleting the audio removes its companion too.
 - **Pick which channels go into the video** — a per-input channel selector under
   the camera lets you choose which channels of your recording interface are mixed
-  (down to stereo) into the video's audio track via ffmpeg. Uncheck everything
-  for a silent video; the full multitrack WAV is always saved untouched alongside.
+  (down to stereo) into the video's audio track via ffmpeg, through a look-ahead
+  limiter so the bundled track never clips. Uncheck everything for a silent video;
+  the full multitrack WAV is always saved untouched alongside.
 - **Dominant key + tempo in the filename** — when a confident reading is
   available at save time, files are named like
   `idea_2026-06-13_14-22-05_Cs_min_122bpm.wav` (`#` becomes `s`). When the

@@ -149,6 +149,7 @@ def analyze_audio_file(data):
         "key": analyzer.estimate_key(seg, sr),
         "tuning": analyzer.estimate_tuning(seg, sr),
         "key_map": analyzer.key_map(mono[:int(sr * 600)], sr),
+        "tempo_map": analyzer.tempo_map(mono[:int(sr * 600)], sr),
     }
 
 

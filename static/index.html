@@ -417,6 +417,11 @@
         <div class="kmBar" id="kmBar"></div>
         <div class="kmList" id="kmList"></div>
       </div>
+      <div class="keyMap" id="tempoMap" hidden>
+        <div class="kmTitle">Tempo map</div>
+        <div class="kmBar" id="tmBar"></div>
+        <div class="kmList" id="tmList"></div>
+      </div>
       <button class="ghostBtn" id="dropAnother">Analyze another</button>
     </div>
   </div>
@@ -870,6 +875,7 @@ function showFileResult(name, data) {
     $("fCents").textContent = "—";
   }
   renderKeyMap(data.key_map);
+  renderTempoMap(data.tempo_map);
   $("dropInner").querySelector(".dropText").innerHTML = DROP_PROMPT;
 }
 
@@ -915,6 +921,47 @@ function renderKeyMap(km) {
     }
   }
   $("kmList").innerHTML = rows.join("");
+}
+
+function tempoColor(bpm) {
+  // slow → blue, fast → red, across the usual 70–185 BPM range
+  const f = Math.max(0, Math.min(1, (bpm - 70) / (185 - 70)));
+  return `hsl(${Math.round(210 - f * 210)} 62% 50%)`;
+}
+
+function renderTempoMap(tm) {
+  const box = $("tempoMap");
+  if (!tm || !tm.segments || !tm.segments.length || !tm.duration) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  const dur = tm.duration;
+
+  $("tmBar").innerHTML = tm.segments.map(s => {
+    const pct = Math.max(0, (s.end - s.start) / dur * 100);
+    const label = pct > 9 ? s.bpm.toFixed(0) : "";
+    return `<div class="kmSeg" style="width:${pct}%;background:${tempoColor(s.bpm)}"
+                 title="${s.bpm.toFixed(1)} BPM · ${fmtClock(s.start)}–${fmtClock(s.end)}">${label}</div>`;
+  }).join("");
+
+  const rows = [];
+  if (!tm.changes.length) {
+    rows.push(`<div class="kmRow kmNone">No tempo changes —
+               <span class="kmKey" style="color:${tempoColor(tm.overall)}">&nbsp;${tm.overall.toFixed(1)} BPM</span>
+               &nbsp;throughout.</div>`);
+  } else {
+    rows.push(`<div class="kmRow"><span class="kmDot" style="background:${tempoColor(tm.segments[0].bpm)}"></span>
+               <span class="kmTime">${fmtClock(0)}</span>
+               <span class="kmKey">${tm.segments[0].bpm.toFixed(1)} BPM</span></div>`);
+    for (const s of tm.segments.slice(1)) {
+      rows.push(`<div class="kmRow"><span class="kmDot" style="background:${tempoColor(s.bpm)}"></span>
+                 <span class="kmTime">${fmtClock(s.start)}</span>
+                 <span class="kmKey">${s.bpm.toFixed(1)} BPM</span>
+                 <span class="kmTime" style="min-width:0">change</span></div>`);
+    }
+  }
+  $("tmList").innerHTML = rows.join("");
 }
 
 (async () => {

@@ -29,6 +29,9 @@ filling your drive.
   changes, with timestamps. It biases toward the song's overall key and ignores
   brief, unsustained shifts, so passing chords and noisy passages don't show up
   as false changes — only clear, lasting modulations do.
+- A **tempo map** alongside it — the same colored-timeline treatment for BPM
+  over time. It folds half-/double-time jitter into the overall tempo and merges
+  near-identical regions, so only sustained, clearly different tempos register.
 - **Continuous record mode** — alongside the rolling buffer, hit *Record
   continuously* to stream everything straight to disk until you stop. Disk
   writes run on a separate thread so the audio path never glitches.

@@ -149,6 +149,31 @@
     background: var(--accent-soft); color: var(--accent);
     border-color: rgba(91, 108, 255, .35); box-shadow: none;
   }
+  /* camera */
+  #cameraToggle {
+    background: var(--accent); color: #fff; border-color: transparent;
+    box-shadow: 0 4px 14px rgba(91, 108, 255, .25);
+  }
+  #cameraToggle:hover { background: #4a5bff; }
+  #cameraToggle.live {
+    background: var(--accent-soft); color: var(--accent);
+    border-color: rgba(91, 108, 255, .35); box-shadow: none;
+  }
+  #cameraPreview {
+    width: 100%; border-radius: 12px; background: #0b0e18;
+    aspect-ratio: 16 / 9; object-fit: cover; display: block;
+    transform: scaleX(-1);   /* mirror like a webcam preview */
+  }
+  .capture video {
+    width: 100%; margin-top: 10px; border-radius: 10px;
+    background: #0b0e18; max-height: 260px;
+  }
+  .camRecDot {
+    display: none; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--rec); animation: pulse 1.4s infinite;
+  }
+  #cameraWrap.continuous .camRecDot { display: inline-block; }
+
   .tuner { margin-top: 18px; text-align: center; }
   .tunerNote {
     font-size: 60px; font-weight: 800; letter-spacing: -.03em; line-height: 1;
@@ -358,6 +383,30 @@
     <span class="recDot"></span><span id="recordLabel">Record continuously</span>
   </button>
 
+  <h2>Camera</h2>
+  <div class="panel">
+    <div class="row">
+      <div class="field grow">
+        <label for="cameraDevice">Camera</label>
+        <select id="cameraDevice"></select>
+      </div>
+      <div class="field" style="display:flex;align-items:flex-end">
+        <button id="cameraToggle" style="width:100%">Enable camera</button>
+      </div>
+    </div>
+    <div id="cameraWrap" hidden style="margin-top:14px">
+      <video id="cameraPreview" autoplay muted playsinline></video>
+      <div class="meterLabels">
+        <span id="cameraInfo"></span>
+        <span id="cameraBuf"><span class="camRecDot"></span></span>
+      </div>
+    </div>
+    <p class="sub" style="margin:10px 0 0;font-size:12px">
+      Rolls a silent video buffer alongside the audio. Save or stop recording and
+      the matching video is exported next to the audio file.
+    </p>
+  </div>
+
   <h2>Live tuner</h2>
   <div class="panel">
     <div class="row">
@@ -434,6 +483,17 @@ const $ = id => document.getElementById(id);
 let running = false;
 let recording = false;
 let smoothPeaks = [];
+
+// ---- camera buffer (browser-side) ----
+// A MediaRecorder rolls a video buffer in memory. The first chunk holds the
+// stream header and is always kept; later chunks are pruned to the audio
+// buffer length, so on save we ship header + the recent window as one file.
+let cameraStream = null, mediaRecorder = null, videoMime = "";
+let videoHeader = null, videoChunks = [];   // videoChunks: [{data, t}], excludes header
+let videoContinuous = false, recordChunkStart = 0;
+const cameraActive = () => !!mediaRecorder;
+const bufferSeconds = () => +($("seconds").value) || 60;
+const videoExt = () => videoMime.includes("mp4") ? "mp4" : "webm";
 
 async function api(path, body) {
   const res = await fetch(path, body !== undefined
@@ -620,17 +680,20 @@ async function renderCaptures() {
       when,
     ].filter(Boolean).join(" · ");
     const href = "/captures/" + encodeURIComponent(c.name);
+    const vhref = c.video ? "/captures/" + encodeURIComponent(c.video) : "";
     div.innerHTML = `
       <div class="top">
-        <span class="name"><span class="grip" title="Drag to Finder or your DAW">⠿</span>${c.name}</span>
+        <span class="name"><span class="grip" title="Drag to Finder or your DAW">⠿</span>${c.video ? "🎥 " : ""}${c.name}</span>
         <span class="meta">${meta}</span>
         <span class="actions">
-          <a class="iconBtn" href="${href}" download="${c.name}" title="Download">⤓</a>
+          <a class="iconBtn" href="${href}" download="${c.name}" title="Download audio">⤓</a>
+          ${c.video ? `<a class="iconBtn" href="${vhref}" download="${c.video}" title="Download video">🎬</a>` : ""}
           <button class="iconBtn reveal" title="Show in Finder">⤢</button>
           <button class="iconBtn del" title="Delete">✕</button>
         </span>
       </div>
-      <audio controls preload="none" src="${href}"></audio>`;
+      <audio controls preload="none" src="${href}"></audio>
+      ${c.video ? `<video controls preload="metadata" src="${vhref}"></video>` : ""}`;
 
     // Drag the file out to Finder / a DAW (works in Chrome-family browsers).
     div.draggable = true;
@@ -642,8 +705,9 @@ async function renderCaptures() {
       div.classList.add("dragging");
     });
     div.addEventListener("dragend", () => div.classList.remove("dragging"));
-    // Don't start a card drag from the audio scrubber.
-    div.querySelector("audio").addEventListener("mousedown", (e) => e.stopPropagation());
+    // Don't start a card drag from the audio/video scrubber.
+    div.querySelectorAll("audio, video").forEach(el =>
+      el.addEventListener("mousedown", (e) => e.stopPropagation()));
 
     div.querySelector(".reveal").onclick = async () => {
       try { await api("/api/reveal", { name: c.name }); }
@@ -746,6 +810,149 @@ $("tunerToggle").onclick = async () => {
   } catch (e) { toast(e.message, true); }
 };
 
+// ---- camera ----
+function pickVideoMime() {
+  if (!window.MediaRecorder) return "";
+  const cands = ["video/webm;codecs=vp9", "video/webm;codecs=vp8",
+                 "video/webm", "video/mp4"];
+  for (const m of cands) {
+    try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {}
+  }
+  return "";
+}
+
+async function loadCameras() {
+  const sel = $("cameraDevice");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices
+      || !pickVideoMime()) {
+    $("cameraToggle").disabled = true;
+    sel.innerHTML = '<option>Camera not supported</option>';
+    return;
+  }
+  let cams = [];
+  try {
+    cams = (await navigator.mediaDevices.enumerateDevices())
+      .filter(d => d.kind === "videoinput");
+  } catch (e) {}
+  const remembered = localStorage.getItem("idea-recorder-camera");
+  sel.innerHTML = "";
+  if (!cams.length) {
+    sel.innerHTML = '<option value="">Default camera</option>';
+    return;
+  }
+  cams.forEach((c, i) => {
+    const opt = document.createElement("option");
+    opt.value = c.deviceId;
+    opt.textContent = c.label || ("Camera " + (i + 1));
+    if (remembered && c.deviceId === remembered) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function onVideoData(e) {
+  if (!e.data || !e.data.size) return;
+  const t = performance.now() / 1000;
+  if (!videoHeader) { videoHeader = e.data; return; }   // stream header
+  videoChunks.push({ data: e.data, t });
+  if (!videoContinuous) {                                // roll the window
+    const cutoff = t - (bufferSeconds() + 2);
+    while (videoChunks.length && videoChunks[0].t < cutoff) videoChunks.shift();
+  }
+}
+
+function buildVideoBlob(fromIndex) {
+  if (!videoHeader) return null;
+  const parts = [videoHeader, ...videoChunks.slice(fromIndex || 0).map(c => c.data)];
+  return new Blob(parts, { type: videoMime.split(";")[0] });
+}
+
+// Force the recorder to emit its latest data so the saved clip's tail is tight.
+function flushVideo() {
+  return new Promise(resolve => {
+    if (!mediaRecorder || mediaRecorder.state !== "recording") return resolve();
+    const done = () => { mediaRecorder.removeEventListener("dataavailable", done); resolve(); };
+    mediaRecorder.addEventListener("dataavailable", done);
+    try { mediaRecorder.requestData(); } catch (e) { resolve(); }
+    setTimeout(resolve, 400);   // safety net
+  });
+}
+
+async function uploadVideo(audioName, blob) {
+  if (!blob || !blob.size) return;
+  const res = await fetch("/api/save-video", {
+    method: "POST",
+    headers: { "X-Audio-Name": audioName, "X-Video-Ext": videoExt() },
+    body: blob,
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d.error || "video save failed");
+  }
+}
+
+function setCameraUI(on) {
+  $("cameraToggle").textContent = on ? "Disable camera" : "Enable camera";
+  $("cameraToggle").classList.toggle("live", on);
+  $("cameraDevice").disabled = on;
+  $("cameraWrap").hidden = !on;
+  $("cameraInfo").textContent = on ? ("Recording " + videoExt().toUpperCase() + " buffer") : "";
+}
+
+async function enableCamera() {
+  const mime = pickVideoMime();
+  if (!mime) { toast("This browser can't record video.", true); return; }
+  const id = $("cameraDevice").value;
+  const video = { width: { ideal: 1280 }, height: { ideal: 720 } };
+  if (id) video.deviceId = { exact: id };
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
+  } catch (e) {
+    toast("Camera unavailable — access may be blocked.", true);
+    return;
+  }
+  cameraStream = stream;
+  videoMime = mime;
+  videoHeader = null;
+  videoChunks = [];
+  videoContinuous = false;
+  $("cameraPreview").srcObject = stream;
+  mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 4e6 });
+  mediaRecorder.ondataavailable = onVideoData;
+  mediaRecorder.start(1000);   // one chunk per second
+  stream.getVideoTracks()[0].addEventListener("ended", disableCamera);
+  setCameraUI(true);
+  await loadCameras();         // labels are available now that access is granted
+  if (id) { $("cameraDevice").value = id; localStorage.setItem("idea-recorder-camera", id); }
+}
+
+function disableCamera() {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    try { mediaRecorder.stop(); } catch (e) {}
+  }
+  if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+  cameraStream = mediaRecorder = null;
+  videoHeader = null;
+  videoChunks = [];
+  videoContinuous = false;
+  $("cameraPreview").srcObject = null;
+  $("cameraWrap").classList.remove("continuous");
+  setCameraUI(false);
+}
+
+$("cameraToggle").onclick = () => { cameraActive() ? disableCamera() : enableCamera(); };
+$("cameraDevice").onchange = () =>
+  localStorage.setItem("idea-recorder-camera", $("cameraDevice").value);
+
+function updateCameraBuf() {
+  if (!cameraActive()) return;
+  const span = videoChunks.length
+    ? videoChunks[videoChunks.length - 1].t - videoChunks[0].t : 0;
+  $("cameraBuf").innerHTML = (videoContinuous
+    ? '<span class="camRecDot"></span> recording ' + fmtClock(span)
+    : "buffer " + Math.round(span) + "s");
+}
+
 $("openFolder").onclick = () => api("/api/reveal", {}).catch(e => toast(e.message, true));
 
 $("changeFolder").onclick = async () => {
@@ -761,10 +968,22 @@ $("recordBtn").onclick = async () => {
   try {
     if (recording) {
       const r = await api("/api/record/stop", {});
+      if (cameraActive()) {
+        await flushVideo();
+        videoContinuous = false;
+        $("cameraWrap").classList.remove("continuous");
+        try { await uploadVideo(r.saved, buildVideoBlob(recordChunkStart)); }
+        catch (e) { toast("Recorded; video failed: " + e.message, true); }
+      }
       toast("Recorded " + r.duration + "s → " + r.saved);
       renderCaptures();
     } else {
       await api("/api/record/start", {});
+      if (cameraActive()) {
+        recordChunkStart = videoChunks.length;   // video for this take starts here
+        videoContinuous = true;
+        $("cameraWrap").classList.add("continuous");
+      }
     }
   } catch (e) { toast(e.message, true); }
 };
@@ -795,6 +1014,15 @@ function updateRecordUI(status) {
 $("saveBtn").onclick = async () => {
   try {
     const r = await api("/api/save", {});
+    if (cameraActive()) {
+      await flushVideo();
+      try { await uploadVideo(r.saved, buildVideoBlob(0)); }
+      catch (e) {
+        toast("Audio saved; video failed: " + e.message, true);
+        renderCaptures();
+        return;
+      }
+    }
     toast("Saved " + r.duration + "s → " + r.saved);
     renderCaptures();
   } catch (e) { toast(e.message, true); }
@@ -966,6 +1194,7 @@ function renderTempoMap(tm) {
 
 (async () => {
   await loadDevices();
+  await loadCameras();
   await loadInfo();
   const s = await api("/api/status");
   setRunningUI(s);
@@ -973,6 +1202,7 @@ function renderTempoMap(tm) {
   renderCaptures();
   setInterval(poll, 150);
   setInterval(tunerPoll, 90);
+  setInterval(updateCameraBuf, 500);
 })().catch(e => toast(e.message, true));
 </script>
 </body>

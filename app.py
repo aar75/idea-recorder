@@ -41,8 +41,16 @@ else:
     RES = Path(__file__).resolve().parent
     CAPTURES = RES / "captures"
 STATIC = RES / "static"
-SAFE_NAME = re.compile(r"^[\w.-]+\.wav$")
+# Capture files we'll serve/delete: the hi-fi WAV plus an optional companion
+# video recorded in the browser and uploaded on save.
+SAFE_NAME = re.compile(r"^[\w.-]+\.(wav|webm|mp4)$")
+VIDEO_TYPES = {".webm": "video/webm", ".mp4": "video/mp4"}
 CONFIG = Path.home() / ".idea_recorder.json"
+
+
+def capture_ctype(name):
+    """Content-Type for a capture file, by extension."""
+    return VIDEO_TYPES.get(Path(name).suffix.lower(), "audio/wav")
 
 
 def load_config():
@@ -495,12 +503,20 @@ def list_captures():
             channels = info.channels
         except RuntimeError:
             duration, channels = None, None
+        # Pair the WAV with a companion video, if one was saved alongside it.
+        video = None
+        for ext in (".webm", ".mp4"):
+            vp = p.with_suffix(ext)
+            if vp.exists():
+                video = vp.name
+                break
         out.append({
             "name": p.name,
             "duration": duration,
             "channels": channels,
             "size": p.stat().st_size,
             "mtime": int(p.stat().st_mtime),
+            "video": video,
         })
     return out
 
@@ -545,7 +561,7 @@ class Handler(BaseHTTPRequestHandler):
             if not SAFE_NAME.match(name):
                 self._json({"error": "bad filename"}, 400)
                 return
-            self._serve_file(CAPTURES / name, "audio/wav")
+            self._serve_file(CAPTURES / name, capture_ctype(name))
         else:
             self._json({"error": "not found"}, 404)
 
@@ -602,6 +618,29 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 result["filename"] = self.headers.get("X-Filename", "")
                 self._json(result)
+            elif self.path == "/api/save-video":
+                # Store a browser-recorded video buffer next to the WAV that was
+                # just saved, sharing its stem so the two are paired by name.
+                audio = self.headers.get("X-Audio-Name", "")
+                ext = "." + (self.headers.get("X-Video-Ext") or "webm").lower()
+                if not SAFE_NAME.match(audio) or not audio.endswith(".wav"):
+                    self._json({"error": "bad audio name"}, 400)
+                    return
+                if ext not in VIDEO_TYPES:
+                    self._json({"error": "unsupported video type"}, 400)
+                    return
+                length = int(self.headers.get("Content-Length") or 0)
+                if length <= 0:
+                    self._json({"error": "No video uploaded."}, 400)
+                    return
+                if length > 1024 * 1024 * 1024:
+                    self._json({"error": "Video too large (max 1 GB)."}, 400)
+                    return
+                data = self.rfile.read(length)
+                CAPTURES.mkdir(parents=True, exist_ok=True)
+                out = CAPTURES / (Path(audio).stem + ext)
+                out.write_bytes(data)
+                self._json({"saved": out.name})
             elif self.path == "/api/set-folder":
                 # Use a typed path if given, else pop the native macOS chooser.
                 path = self._read_body().get("path")
@@ -622,6 +661,10 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"error": "bad filename"}, 400)
                     return
                 (CAPTURES / name).unlink(missing_ok=True)
+                # Drop the companion video too when deleting the WAV.
+                if name.endswith(".wav"):
+                    for ext in (".webm", ".mp4"):
+                        (CAPTURES / name).with_suffix(ext).unlink(missing_ok=True)
                 self._json({"deleted": name})
             elif self.path == "/api/reveal":
                 # Open the captures folder in Finder, or reveal one file in it.

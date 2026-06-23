@@ -37,6 +37,14 @@ filling your drive.
 - **Continuous record mode** — alongside the rolling buffer, hit *Record
   continuously* to stream everything straight to disk until you stop. Disk
   writes run on a separate thread so the audio path never glitches.
+- **Camera buffer (companion video)** — optionally enable a webcam to roll a
+  *silent* video buffer in the browser alongside the audio. Save the rolling
+  buffer or stop a continuous recording and the matching video is exported right
+  next to the audio file, sharing its name (a `.webm`/`.mp4` beside
+  `idea_2026-06-13_14-22-05_Cs_min_122bpm.wav`). Capture happens in the browser,
+  so the camera permission prompt comes from your browser — the app itself never
+  touches the camera. Each capture card plays and downloads the paired video,
+  and deleting the audio removes its companion too.
 - **Dominant key + tempo in the filename** — when a confident reading is
   available at save time, files are named like
   `idea_2026-06-13_14-22-05_Cs_min_122bpm.wav` (`#` becomes `s`). When the

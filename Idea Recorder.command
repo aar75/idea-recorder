@@ -5,7 +5,7 @@
 
 cd "${0:a:h}" || exit 1
 
-PORT=8766
+PORT="${PORT:-8766}"   # override with: PORT=8770 open "Idea Recorder.command"
 PY=".venv/bin/python"
 
 # Self-heal: build the venv the first time, or if it's missing.
@@ -21,15 +21,28 @@ if [[ ! -x "$PY" ]]; then
   fi
   python3 -m venv .venv || { read "?Setup failed. Press Return to close."; exit 1; }
   "$PY" -m pip install --quiet --upgrade pip
-  "$PY" -m pip install --quiet sounddevice soundfile numpy \
-    || { read "?Could not install dependencies. Press Return to close."; exit 1; }
+  if [[ -f requirements.txt ]]; then
+    "$PY" -m pip install --quiet -r requirements.txt \
+      || { read "?Could not install dependencies. Press Return to close."; exit 1; }
+  else
+    "$PY" -m pip install --quiet sounddevice soundfile numpy \
+      || { read "?Could not install dependencies. Press Return to close."; exit 1; }
+  fi
   echo "Setup done."
   echo
 fi
 
-# Optional: fetch ffmpeg so the file analyzer can read M4A/AAC too.
-# Best-effort and needs the internet once; everything else works without it.
-if [[ ! -x "vendor/ffmpeg" && -f "get-ffmpeg.sh" ]]; then
+# ffmpeg powers M4A/AAC decoding in the file analyzer. The repo ships a vendored
+# static binary per arch (via Git LFS), so normally nothing is downloaded. Only
+# if it's genuinely missing — e.g. cloned without `git lfs pull`, which leaves a
+# tiny pointer stub — fall back to fetching one (best-effort, online once).
+ARCH=$(uname -m)
+have_ffmpeg=0
+for f in vendor/ffmpeg "vendor/ffmpeg-$ARCH"; do
+  # A real binary is tens of MB; a Git LFS pointer stub is a few hundred bytes.
+  [[ -f "$f" && $(wc -c < "$f") -gt 1000000 ]] && have_ffmpeg=1
+done
+if [[ "$have_ffmpeg" -eq 0 && -f "get-ffmpeg.sh" ]]; then
   echo "Fetching ffmpeg for M4A/AAC support (one-time, optional)…"
   zsh get-ffmpeg.sh >/dev/null 2>&1 || echo "  (skipped — M4A/AAC analysis won't be available)"
 fi

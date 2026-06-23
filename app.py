@@ -171,12 +171,19 @@ def build_companion_video(segments, ext, wav_path, channels):
         if channels and wav_path:
             n = len(channels)
             expr = "+".join(f"{1.0 / n:.6f}*c{c}" for c in channels)
+            # A look-ahead limiter caps the bundled audio so it can't clip — a hot
+            # channel sitting near 0 dBFS would otherwise push the lossy encoder
+            # over full scale (AAC inter-sample peaks run ~1 dB hot). A 0.8 ceiling
+            # (~-1.9 dBFS) leaves enough headroom for both AAC and Opus to stay
+            # under 0 after encoding; level=0 keeps it from re-normalising back up.
+            afilter = (f"[1:a]pan=stereo|c0={expr}|c1={expr},"
+                       f"alimiter=limit=0.8:level=0[a]")
             acodec = (["-c:a", "libopus", "-b:a", "128k"] if ext == "webm"
                       else ["-c:a", "aac", "-b:a", "192k"])
             muxed = tmp / f"out.{ext}"
             run = subprocess.run(
                 [ff, "-v", "error", "-i", str(concat), "-i", wav_path,
-                 "-filter_complex", f"[1:a]pan=stereo|c0={expr}|c1={expr}[a]",
+                 "-filter_complex", afilter,
                  "-map", "0:v:0", "-map", "[a]",
                  "-c:v", "copy", *acodec, "-shortest", str(muxed)],
                 capture_output=True)

@@ -12,6 +12,7 @@ import datetime
 import io
 import json
 import os
+import platform
 import queue
 import re
 import shutil
@@ -83,9 +84,11 @@ def find_ffmpeg():
     Finder-launched apps get a minimal PATH that misses Homebrew, so the
     common install locations are checked explicitly.
     """
+    src_vendor = Path(__file__).resolve().parent / "vendor"
     candidates = [
         RES / "ffmpeg",                       # bundled inside the .app
-        Path(__file__).resolve().parent / "vendor" / "ffmpeg",  # vendored next to source
+        src_vendor / "ffmpeg",                # generated working copy next to source
+        src_vendor / f"ffmpeg-{platform.machine()}",  # committed per-arch binary (Git LFS)
     ]
     on_path = shutil.which("ffmpeg")
     if on_path:

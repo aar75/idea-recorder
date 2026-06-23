@@ -102,14 +102,18 @@ PyInstaller can only build for the architecture it runs on, so each Mac chip
 needs its own build:
 
 ```sh
+git lfs install && git lfs pull   # one-time: fetch the vendored ffmpeg binaries
 ./build-mac-app.sh
 ```
 
-The script fetches a matching static ffmpeg (for M4A/AAC support in the file
-analyzer) into `vendor/` automatically, re-fetching if a leftover binary is the
-wrong architecture, and aborts if the finished app's binary doesn't match the
-build machine. If the ffmpeg download fails the app still builds and reads
-WAV/AIFF/FLAC/MP3/OGG — just not M4A/AAC.
+A static ffmpeg (for M4A/AAC support in the file analyzer) is **committed in the
+repo** as `vendor/ffmpeg-x86_64` and `vendor/ffmpeg-arm64` via [Git LFS](https://git-lfs.com),
+so the build is fully local — nothing is downloaded from a third-party site. The
+script copies the matching arch into the app and aborts if the finished binary
+doesn't match the build machine. (Clone without LFS and you'll just get pointer
+files — `git lfs pull` fixes it; the app still builds without ffmpeg, it just
+won't read M4A/AAC.) To refresh ffmpeg, run `./get-ffmpeg.sh` on each arch and
+commit the updated `vendor/ffmpeg-<arch>`.
 
 - Run it on an **Intel** Mac  → `dist/Idea-Recorder-Intel.zip` (x86_64)
 - Run it on an **Apple Silicon** Mac → `dist/Idea-Recorder-AppleSilicon.zip` (arm64)

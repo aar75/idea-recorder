@@ -12,8 +12,12 @@ build/
 dist/
 *.spec.bak
 
-# Vendored ffmpeg binary (large, arch-specific — fetch with ./get-ffmpeg.sh)
-vendor/
+# Vendored ffmpeg: the per-arch static binaries are committed via Git LFS so
+# builds stay fully local (no third-party download). Only the arch-specific
+# working copy the build generates (vendor/ffmpeg) is ignored.
+vendor/*
+!vendor/ffmpeg-arm64
+!vendor/ffmpeg-x86_64
 
 # Recorded audio (user content)
 captures/*.wav

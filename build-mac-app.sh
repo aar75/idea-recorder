@@ -23,22 +23,25 @@ esac
 
 echo "==> Building Idea Recorder for $ARCH ($LABEL)"
 
-# Make sure the vendored ffmpeg matches THIS machine's architecture. Copying the
-# project folder between an Intel and an Apple Silicon Mac leaves a wrong-arch
-# binary behind, which would bundle a non-runnable ffmpeg into the app (M4A/AAC
-# decode silently breaks). Fetch the right one when it's missing or mismatched.
-if [[ -x get-ffmpeg.sh ]]; then
-  FF_ARCH=$(lipo -archs vendor/ffmpeg 2>/dev/null || true)
-  if [[ ! -f vendor/ffmpeg ]]; then
-    echo "    No vendored ffmpeg — fetching for $ARCH…"
-    ./get-ffmpeg.sh || echo "    (ffmpeg fetch failed; app will still build without M4A/AAC support)"
-  elif [[ "$FF_ARCH" != *"$ARCH"* ]]; then
-    echo "    Vendored ffmpeg is '$FF_ARCH', need '$ARCH' — refetching…"
-    rm -f vendor/ffmpeg
-    ./get-ffmpeg.sh || echo "    (ffmpeg fetch failed; app will still build without M4A/AAC support)"
-  else
-    echo "    Vendored ffmpeg matches $ARCH."
-  fi
+# Bundle the matching ffmpeg from the per-arch binaries committed in vendor/
+# (via Git LFS) — no network needed, so the build stays fully local. The spec
+# bundles vendor/ffmpeg, so stage the right arch there.
+SRC="vendor/ffmpeg-$ARCH"
+if [[ -f "$SRC" ]] && lipo -archs "$SRC" 2>/dev/null | grep -q "$ARCH"; then
+  echo "    Using vendored ffmpeg ($ARCH)."
+  cp "$SRC" vendor/ffmpeg
+  chmod +x vendor/ffmpeg
+elif [[ -f "$SRC" ]]; then
+  # File exists but isn't a real binary — almost always an un-pulled Git LFS
+  # pointer. Tell the user how to fix it rather than bundling a broken ffmpeg.
+  echo "!!  $SRC is a Git LFS pointer, not the binary." >&2
+  echo "    Run 'git lfs install && git lfs pull' to fetch it, then rebuild." >&2
+  echo "    Building without M4A/AAC support for now." >&2
+  rm -f vendor/ffmpeg
+else
+  echo "    No vendored ffmpeg for $ARCH — building without M4A/AAC support."
+  echo "    (Run ./get-ffmpeg.sh to add it to vendor/, then rebuild.)"
+  rm -f vendor/ffmpeg
 fi
 
 VENV=".build-venv"

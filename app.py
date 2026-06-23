@@ -131,6 +131,63 @@ def _decode_with_ffmpeg(data):
         os.unlink(path)
 
 
+def build_companion_video(segments, ext, wav_path, channels):
+    """Assemble the browser's rolling video buffer into one capture file.
+
+    `segments` are self-contained clips recorded back-to-back in the browser
+    (rotating the recorder keeps each one valid, unlike slicing a single
+    stream — which is why a naive buffer played back as ~1 second). They're
+    concatenated with ffmpeg's concat demuxer, which recomputes timestamps
+    into a single correctly-timed clip. When `channels` is non-empty and a WAV
+    is given, those channels are downmixed to stereo and muxed in as the audio
+    track. Returns the finished file's bytes.
+    """
+    ff = find_ffmpeg()
+    if not ff:
+        raise ValueError("Saving video needs ffmpeg, which wasn't found.")
+    tmp = Path(tempfile.mkdtemp(prefix="ir_vid_"))
+    try:
+        seg_paths = []
+        for i, blob in enumerate(segments):
+            p = tmp / f"seg{i:04d}.{ext}"
+            p.write_bytes(blob)
+            seg_paths.append(p)
+
+        # 1) Concatenate the segments into one valid, correctly-timed clip.
+        concat = tmp / f"concat.{ext}"
+        if len(seg_paths) == 1:
+            concat = seg_paths[0]
+        else:
+            listing = tmp / "list.txt"
+            listing.write_text("".join(f"file '{p.name}'\n" for p in seg_paths))
+            run = subprocess.run(
+                [ff, "-v", "error", "-f", "concat", "-safe", "0",
+                 "-i", str(listing), "-c", "copy", str(concat)],
+                cwd=str(tmp), capture_output=True)
+            if run.returncode != 0 or not concat.exists():
+                raise ValueError("Couldn't assemble the video segments.")
+
+        # 2) Optionally fold the chosen WAV channels in as a stereo audio track.
+        if channels and wav_path:
+            n = len(channels)
+            expr = "+".join(f"{1.0 / n:.6f}*c{c}" for c in channels)
+            acodec = (["-c:a", "libopus", "-b:a", "128k"] if ext == "webm"
+                      else ["-c:a", "aac", "-b:a", "192k"])
+            muxed = tmp / f"out.{ext}"
+            run = subprocess.run(
+                [ff, "-v", "error", "-i", str(concat), "-i", wav_path,
+                 "-filter_complex", f"[1:a]pan=stereo|c0={expr}|c1={expr}[a]",
+                 "-map", "0:v:0", "-map", "[a]",
+                 "-c:v", "copy", *acodec, "-shortest", str(muxed)],
+                capture_output=True)
+            if run.returncode == 0 and muxed.exists():
+                return muxed.read_bytes()
+            # Muxing failed (e.g. codec) — keep the silent video rather than lose it.
+        return concat.read_bytes()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def analyze_audio_file(data):
     """Decode an uploaded audio file and return a quick key + tempo estimate."""
     try:
@@ -621,6 +678,9 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/api/save-video":
                 # Store a browser-recorded video buffer next to the WAV that was
                 # just saved, sharing its stem so the two are paired by name.
+                # The browser sends the rolling buffer as a run of self-contained
+                # segments (X-Seg-Sizes); we concat them into one valid clip and
+                # optionally mux in the chosen channels of the WAV's audio.
                 audio = self.headers.get("X-Audio-Name", "")
                 ext = "." + (self.headers.get("X-Video-Ext") or "webm").lower()
                 if not SAFE_NAME.match(audio) or not audio.endswith(".wav"):
@@ -633,14 +693,46 @@ class Handler(BaseHTTPRequestHandler):
                 if length <= 0:
                     self._json({"error": "No video uploaded."}, 400)
                     return
-                if length > 1024 * 1024 * 1024:
-                    self._json({"error": "Video too large (max 1 GB)."}, 400)
+                if length > 2 * 1024 * 1024 * 1024:
+                    self._json({"error": "Video too large (max 2 GB)."}, 400)
                     return
                 data = self.rfile.read(length)
+                # Split the body back into the individual segment blobs.
+                try:
+                    sizes = [int(x) for x in
+                             (self.headers.get("X-Seg-Sizes") or "").split(",") if x.strip()]
+                except ValueError:
+                    sizes = []
+                if sizes and sum(sizes) == len(data):
+                    segs, off = [], 0
+                    for s in sizes:
+                        segs.append(data[off:off + s])
+                        off += s
+                else:
+                    segs = [data]   # single-blob fallback
+                # Channels of the WAV to fold into the video's audio track.
+                try:
+                    channels = [int(x) for x in
+                                (self.headers.get("X-Audio-Channels") or "").split(",") if x.strip()]
+                except ValueError:
+                    channels = []
+                wav_path = CAPTURES / audio
+                if channels and wav_path.exists():
+                    try:
+                        chn = sf.info(str(wav_path)).channels
+                        channels = [c for c in channels if 0 <= c < chn]
+                    except Exception:
+                        channels = []
                 CAPTURES.mkdir(parents=True, exist_ok=True)
                 out = CAPTURES / (Path(audio).stem + ext)
-                out.write_bytes(data)
-                self._json({"saved": out.name})
+                try:
+                    out.write_bytes(build_companion_video(
+                        segs, ext.lstrip("."),
+                        str(wav_path) if wav_path.exists() else None, channels))
+                except ValueError as e:
+                    self._json({"error": str(e)}, 400)
+                    return
+                self._json({"saved": out.name, "channels": channels})
             elif self.path == "/api/set-folder":
                 # Use a typed path if given, else pop the native macOS chooser.
                 path = self._read_body().get("path")

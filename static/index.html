@@ -173,6 +173,20 @@
     background: var(--rec); animation: pulse 1.4s infinite;
   }
   #cameraWrap.continuous .camRecDot { display: inline-block; }
+  .bundleAudio { margin-top: 14px; }
+  .chanPicker { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 2px; }
+  .chanChip {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 9px; padding: 6px 11px; font-size: 12px; font-weight: 600;
+    color: var(--dim); text-transform: none; letter-spacing: 0;
+    user-select: none; transition: border-color .15s, color .15s, background .15s;
+  }
+  .chanChip:has(input:checked) {
+    border-color: rgba(91,108,255,.4); background: var(--accent-soft); color: var(--accent);
+  }
+  .chanChip input { accent-color: var(--accent); margin: 0; }
+  .bundleHint { font-size: 11px; color: var(--dim); margin-top: 8px; line-height: 1.45; }
 
   .tuner { margin-top: 18px; text-align: center; }
   .tunerNote {
@@ -400,10 +414,18 @@
         <span id="cameraInfo"></span>
         <span id="cameraBuf"><span class="camRecDot"></span></span>
       </div>
+      <div class="bundleAudio">
+        <label>Audio bundled into video</label>
+        <div id="channelPicker" class="chanPicker"></div>
+        <div class="bundleHint">Channels of the recording input
+          (<span id="bundleDevice">—</span>) are mixed into the video.
+          Uncheck all for silent video; the full multitrack WAV is always saved.</div>
+      </div>
     </div>
     <p class="sub" style="margin:10px 0 0;font-size:12px">
-      Rolls a silent video buffer alongside the audio. Save or stop recording and
-      the matching video is exported next to the audio file.
+      Rolls a video buffer alongside the audio. Save or stop recording and a
+      matching video — with your chosen interface channels mixed in — is exported
+      next to the audio file.
     </p>
   </div>
 
@@ -485,13 +507,17 @@ let recording = false;
 let smoothPeaks = [];
 
 // ---- camera buffer (browser-side) ----
-// A MediaRecorder rolls a video buffer in memory. The first chunk holds the
-// stream header and is always kept; later chunks are pruned to the audio
-// buffer length, so on save we ship header + the recent window as one file.
-let cameraStream = null, mediaRecorder = null, videoMime = "";
-let videoHeader = null, videoChunks = [];   // videoChunks: [{data, t}], excludes header
-let videoContinuous = false, recordChunkStart = 0;
-const cameraActive = () => !!mediaRecorder;
+// The rolling video buffer is recorded as a run of short, self-contained
+// segments (the recorder is rotated every SEG_SECONDS). Each segment is a
+// complete, valid clip, so on save we ship the recent ones and ffmpeg concats
+// them server-side into one correctly-timed file — slicing a single MediaRecorder
+// stream instead is what produced the old ~1-second clip.
+const SEG_SECONDS = 3;
+let cameraStream = null, videoMime = "";
+let segments = [];                      // [{blob, end}] finished segments
+let curRec = null, curChunks = [], segTimer = null;
+let videoContinuous = false, continuousStart = 0;
+const cameraActive = () => !!cameraStream;
 const bufferSeconds = () => +($("seconds").value) || 60;
 const videoExt = () => videoMime.includes("mp4") ? "mp4" : "webm";
 
@@ -849,40 +875,132 @@ async function loadCameras() {
   });
 }
 
-function onVideoData(e) {
-  if (!e.data || !e.data.size) return;
-  const t = performance.now() / 1000;
-  if (!videoHeader) { videoHeader = e.data; return; }   // stream header
-  videoChunks.push({ data: e.data, t });
-  if (!videoContinuous) {                                // roll the window
-    const cutoff = t - (bufferSeconds() + 2);
-    while (videoChunks.length && videoChunks[0].t < cutoff) videoChunks.shift();
-  }
+// Record one self-contained segment, then chain into the next. Rotating the
+// recorder (rather than slicing one stream) keeps every segment valid.
+function startSegment() {
+  if (!cameraStream) return;
+  curChunks = [];
+  let rec;
+  try { rec = new MediaRecorder(cameraStream, { mimeType: videoMime, videoBitsPerSecond: 4e6 }); }
+  catch (e) { return; }
+  curRec = rec;
+  rec.ondataavailable = e => { if (e.data && e.data.size) curChunks.push(e.data); };
+  rec.onstop = () => {
+    if (curChunks.length) {
+      segments.push({ blob: new Blob(curChunks, { type: videoMime.split(";")[0] }),
+                      end: performance.now() / 1000 });
+      pruneSegments();
+    }
+    if (cameraStream && curRec === rec) startSegment();   // roll into the next
+  };
+  rec.start();
 }
 
-function buildVideoBlob(fromIndex) {
-  if (!videoHeader) return null;
-  const parts = [videoHeader, ...videoChunks.slice(fromIndex || 0).map(c => c.data)];
-  return new Blob(parts, { type: videoMime.split(";")[0] });
+function pruneSegments() {
+  if (videoContinuous) return;   // keep the whole take while recording
+  const cutoff = performance.now() / 1000 - (bufferSeconds() + SEG_SECONDS * 2);
+  while (segments.length > 1 && segments[0].end < cutoff) segments.shift();
 }
 
-// Force the recorder to emit its latest data so the saved clip's tail is tight.
-function flushVideo() {
+function rotateSegment() {
+  if (curRec && curRec.state === "recording") curRec.stop();   // onstop chains the next
+}
+
+// Finalize the in-progress segment so a save captures the freshest footage.
+function flushSegment() {
   return new Promise(resolve => {
-    if (!mediaRecorder || mediaRecorder.state !== "recording") return resolve();
-    const done = () => { mediaRecorder.removeEventListener("dataavailable", done); resolve(); };
-    mediaRecorder.addEventListener("dataavailable", done);
-    try { mediaRecorder.requestData(); } catch (e) { resolve(); }
-    setTimeout(resolve, 400);   // safety net
+    const rec = curRec;
+    if (!rec || rec.state !== "recording") return resolve();
+    const chain = rec.onstop;
+    rec.onstop = () => { chain(); resolve(); };
+    rec.stop();
+    setTimeout(resolve, 600);   // safety net
   });
 }
 
-async function uploadVideo(audioName, blob) {
-  if (!blob || !blob.size) return;
+// The segment blobs covering the window we're about to save.
+function collectVideoSegments(continuous) {
+  let segs;
+  if (continuous) {
+    segs = segments.filter(s => s.end >= continuousStart - SEG_SECONDS);
+  } else {
+    const cutoff = performance.now() / 1000 - (bufferSeconds() + SEG_SECONDS);
+    segs = segments.filter(s => s.end >= cutoff);
+  }
+  if (!segs.length && segments.length) segs = [segments[segments.length - 1]];
+  return segs.map(s => s.blob);
+}
+
+async function loadCameras() {
+  const sel = $("cameraDevice");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices
+      || !pickVideoMime()) {
+    $("cameraToggle").disabled = true;
+    sel.innerHTML = '<option>Camera not supported</option>';
+    return;
+  }
+  let cams = [];
+  try {
+    cams = (await navigator.mediaDevices.enumerateDevices())
+      .filter(d => d.kind === "videoinput");
+  } catch (e) {}
+  const remembered = localStorage.getItem("idea-recorder-camera");
+  sel.innerHTML = "";
+  if (!cams.length) {
+    sel.innerHTML = '<option value="">Default camera</option>';
+    return;
+  }
+  cams.forEach((c, i) => {
+    const opt = document.createElement("option");
+    opt.value = c.deviceId;
+    opt.textContent = c.label || ("Camera " + (i + 1));
+    if (remembered && c.deviceId === remembered) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+// ---- audio bundled into the video: pick channels of the recording input ----
+function recordChannelCount() {
+  const dev = deviceList.find(d => String(d.index) === $("device").value);
+  return dev ? dev.channels : 1;
+}
+
+function selectedChannels() {
+  return [...$("channelPicker").querySelectorAll("input:checked")]
+    .map(el => +el.dataset.ch);
+}
+
+function buildChannelPicker() {
+  const n = recordChannelCount();
+  const saved = JSON.parse(localStorage.getItem("idea-recorder-bundle-chans") || "null");
+  const box = $("channelPicker");
+  box.innerHTML = "";
+  for (let i = 0; i < n; i++) {
+    const on = saved ? saved.includes(i) : i < 2;   // default: first one/two inputs
+    const lab = document.createElement("label");
+    lab.className = "chanChip";
+    lab.innerHTML = `<input type="checkbox" data-ch="${i}"${on ? " checked" : ""}>`
+      + `<span>${n > 1 ? "In " + (i + 1) : "Mono"}</span>`;
+    box.appendChild(lab);
+  }
+  box.onchange = () =>
+    localStorage.setItem("idea-recorder-bundle-chans", JSON.stringify(selectedChannels()));
+  const dev = deviceList.find(d => String(d.index) === $("device").value);
+  $("bundleDevice").textContent = dev ? dev.name : "input";
+}
+
+async function uploadVideo(audioName, blobs, channels) {
+  if (!blobs || !blobs.length) return;
+  const sizes = blobs.map(b => b.size).join(",");
   const res = await fetch("/api/save-video", {
     method: "POST",
-    headers: { "X-Audio-Name": audioName, "X-Video-Ext": videoExt() },
-    body: blob,
+    headers: {
+      "X-Audio-Name": audioName,
+      "X-Video-Ext": videoExt(),
+      "X-Seg-Sizes": sizes,
+      "X-Audio-Channels": (channels || []).join(","),
+    },
+    body: new Blob(blobs, { type: videoMime.split(";")[0] }),
   });
   if (!res.ok) {
     const d = await res.json().catch(() => ({}));
@@ -895,7 +1013,7 @@ function setCameraUI(on) {
   $("cameraToggle").classList.toggle("live", on);
   $("cameraDevice").disabled = on;
   $("cameraWrap").hidden = !on;
-  $("cameraInfo").textContent = on ? ("Recording " + videoExt().toUpperCase() + " buffer") : "";
+  $("cameraInfo").textContent = on ? ("Recording " + videoExt().toUpperCase()) : "";
 }
 
 async function enableCamera() {
@@ -913,13 +1031,13 @@ async function enableCamera() {
   }
   cameraStream = stream;
   videoMime = mime;
-  videoHeader = null;
-  videoChunks = [];
+  segments = [];
+  curChunks = [];
   videoContinuous = false;
   $("cameraPreview").srcObject = stream;
-  mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 4e6 });
-  mediaRecorder.ondataavailable = onVideoData;
-  mediaRecorder.start(1000);   // one chunk per second
+  buildChannelPicker();
+  startSegment();
+  segTimer = setInterval(rotateSegment, SEG_SECONDS * 1000);
   stream.getVideoTracks()[0].addEventListener("ended", disableCamera);
   setCameraUI(true);
   await loadCameras();         // labels are available now that access is granted
@@ -927,13 +1045,14 @@ async function enableCamera() {
 }
 
 function disableCamera() {
-  if (mediaRecorder && mediaRecorder.state !== "inactive") {
-    try { mediaRecorder.stop(); } catch (e) {}
-  }
+  if (segTimer) { clearInterval(segTimer); segTimer = null; }
+  const rec = curRec;
+  curRec = null;               // null first so onstop won't chain a new segment
+  if (rec && rec.state !== "inactive") { try { rec.stop(); } catch (e) {} }
   if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
-  cameraStream = mediaRecorder = null;
-  videoHeader = null;
-  videoChunks = [];
+  cameraStream = null;
+  segments = [];
+  curChunks = [];
   videoContinuous = false;
   $("cameraPreview").srcObject = null;
   $("cameraWrap").classList.remove("continuous");
@@ -943,14 +1062,16 @@ function disableCamera() {
 $("cameraToggle").onclick = () => { cameraActive() ? disableCamera() : enableCamera(); };
 $("cameraDevice").onchange = () =>
   localStorage.setItem("idea-recorder-camera", $("cameraDevice").value);
+// Channel list follows the recording input device.
+$("device").addEventListener("change", () => { if (cameraActive()) buildChannelPicker(); });
 
 function updateCameraBuf() {
   if (!cameraActive()) return;
-  const span = videoChunks.length
-    ? videoChunks[videoChunks.length - 1].t - videoChunks[0].t : 0;
+  const span = segments.length
+    ? performance.now() / 1000 - segments[0].end + SEG_SECONDS : 0;
   $("cameraBuf").innerHTML = (videoContinuous
-    ? '<span class="camRecDot"></span> recording ' + fmtClock(span)
-    : "buffer " + Math.round(span) + "s");
+    ? '<span class="camRecDot"></span> recording ' + fmtClock(performance.now() / 1000 - continuousStart)
+    : "buffer " + Math.min(Math.round(span), bufferSeconds()) + "s");
 }
 
 $("openFolder").onclick = () => api("/api/reveal", {}).catch(e => toast(e.message, true));
@@ -969,10 +1090,10 @@ $("recordBtn").onclick = async () => {
     if (recording) {
       const r = await api("/api/record/stop", {});
       if (cameraActive()) {
-        await flushVideo();
+        await flushSegment();
         videoContinuous = false;
         $("cameraWrap").classList.remove("continuous");
-        try { await uploadVideo(r.saved, buildVideoBlob(recordChunkStart)); }
+        try { await uploadVideo(r.saved, collectVideoSegments(true), selectedChannels()); }
         catch (e) { toast("Recorded; video failed: " + e.message, true); }
       }
       toast("Recorded " + r.duration + "s → " + r.saved);
@@ -980,7 +1101,7 @@ $("recordBtn").onclick = async () => {
     } else {
       await api("/api/record/start", {});
       if (cameraActive()) {
-        recordChunkStart = videoChunks.length;   // video for this take starts here
+        continuousStart = performance.now() / 1000;   // video take starts now
         videoContinuous = true;
         $("cameraWrap").classList.add("continuous");
       }
@@ -1015,8 +1136,8 @@ $("saveBtn").onclick = async () => {
   try {
     const r = await api("/api/save", {});
     if (cameraActive()) {
-      await flushVideo();
-      try { await uploadVideo(r.saved, buildVideoBlob(0)); }
+      await flushSegment();
+      try { await uploadVideo(r.saved, collectVideoSegments(false), selectedChannels()); }
       catch (e) {
         toast("Audio saved; video failed: " + e.message, true);
         renderCaptures();

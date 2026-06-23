@@ -25,6 +25,10 @@ filling your drive.
   WAV/AIFF/FLAC/MP3/OGG and get its key and tempo in a second, using the same
   engine. M4A/AAC (and other formats libsndfile can't open) decode via a
   bundled/auto-fetched ffmpeg fallback — see below.
+- A **key map** for uploaded files — a colored timeline showing where the key
+  changes, with timestamps. It biases toward the song's overall key and ignores
+  brief, unsustained shifts, so passing chords and noisy passages don't show up
+  as false changes — only clear, lasting modulations do.
 - **Continuous record mode** — alongside the rolling buffer, hit *Record
   continuously* to stream everything straight to disk until you stop. Disk
   writes run on a separate thread so the audio path never glitches.

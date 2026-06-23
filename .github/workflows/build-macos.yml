@@ -21,6 +21,8 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true   # pull the vendored per-arch ffmpeg (no third-party download)
 
       - uses: actions/setup-python@v5
         with:

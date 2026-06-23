@@ -8,6 +8,16 @@ cd "${0:a:h}" || exit 1
 PORT="${PORT:-8766}"   # override with: PORT=8770 open "Idea Recorder.command"
 PY=".venv/bin/python"
 
+# Already running? Don't start a second server (it would fail to bind the port).
+# Just open the browser on the existing one. /api/status is unique to this app,
+# so a JSON reply with "running" confirms it's Idea Recorder and not something
+# else squatting on the port.
+if curl -s --max-time 2 "http://127.0.0.1:$PORT/api/status" 2>/dev/null | grep -q '"running"'; then
+  echo "Idea Recorder is already running on port $PORT — opening the browser."
+  open "http://127.0.0.1:$PORT/"
+  exit 0
+fi
+
 # Self-heal: build the venv the first time, or if it's missing.
 if [[ ! -x "$PY" ]]; then
   echo "First run — setting up (this happens once)…"

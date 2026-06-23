@@ -139,6 +139,8 @@ def analyze_audio_file(data):
     # keeps a long track from blocking the request.
     seg = mono[:int(sr * 120)]
     analyzer = LiveAnalyzer()
+    # The key map covers the whole song (capped at 10 min to bound compute) so
+    # later modulations aren't missed; the headline key/tempo use the first 2 min.
     return {
         "duration": round(duration, 1),
         "samplerate": int(sr),
@@ -146,6 +148,8 @@ def analyze_audio_file(data):
         "bpm": analyzer.estimate_bpm(seg, sr),
         "key": analyzer.estimate_key(seg, sr),
         "tuning": analyzer.estimate_tuning(seg, sr),
+        "key_map": analyzer.key_map(mono[:int(sr * 600)], sr),
+        "tempo_map": analyzer.tempo_map(mono[:int(sr * 600)], sr),
     }
 
 

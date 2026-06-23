@@ -284,6 +284,23 @@
   .dvNum { display: block; font-size: 26px; font-weight: 800; letter-spacing: -.02em; margin-top: 2px; }
   .dvNum small { font-size: 12px; font-weight: 600; color: var(--dim); margin-left: 3px; }
   #dropAnother { margin-top: 14px; }
+
+  /* key map over time */
+  .keyMap { margin-top: 16px; text-align: left; }
+  .kmTitle { font-size: 10px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+  .kmBar { display: flex; height: 36px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  .kmSeg {
+    display: flex; align-items: center; justify-content: center; min-width: 0;
+    color: #fff; font-size: 11px; font-weight: 700; padding: 0 4px;
+    overflow: hidden; white-space: nowrap; text-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+  }
+  .kmSeg + .kmSeg { border-left: 2px solid rgba(255, 255, 255, .85); }
+  .kmList { margin-top: 11px; font-size: 13px; }
+  .kmRow { display: flex; gap: 9px; align-items: center; padding: 3px 0; }
+  .kmTime { font-variant-numeric: tabular-nums; color: var(--dim); min-width: 44px; }
+  .kmDot { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .kmKey { font-weight: 600; }
+  .kmNone { color: var(--dim); }
 </style>
 </head>
 <body>
@@ -394,6 +411,16 @@
         <div class="dropVal"><span class="dvLabel">Key</span><span class="dvNum" id="fKey">—</span></div>
         <div class="dropVal"><span class="dvLabel">Tempo</span><span class="dvNum" id="fBpm">—</span></div>
         <div class="dropVal"><span class="dvLabel">Tuning vs 440</span><span class="dvNum" id="fCents">—</span></div>
+      </div>
+      <div class="keyMap" id="keyMap" hidden>
+        <div class="kmTitle">Key map</div>
+        <div class="kmBar" id="kmBar"></div>
+        <div class="kmList" id="kmList"></div>
+      </div>
+      <div class="keyMap" id="tempoMap" hidden>
+        <div class="kmTitle">Tempo map</div>
+        <div class="kmBar" id="tmBar"></div>
+        <div class="kmList" id="tmList"></div>
       </div>
       <button class="ghostBtn" id="dropAnother">Analyze another</button>
     </div>
@@ -847,7 +874,94 @@ function showFileResult(name, data) {
   } else {
     $("fCents").textContent = "—";
   }
+  renderKeyMap(data.key_map);
+  renderTempoMap(data.tempo_map);
   $("dropInner").querySelector(".dropText").innerHTML = DROP_PROMPT;
+}
+
+const PC_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+function keyColor(name) {
+  const [tonic, mode] = (name || "").split(" ");
+  const h = Math.max(0, PC_NAMES.indexOf(tonic)) * 30;
+  return mode === "minor" ? `hsl(${h} 42% 46%)` : `hsl(${h} 68% 52%)`;
+}
+
+function renderKeyMap(km) {
+  const box = $("keyMap");
+  if (!km || !km.segments || !km.segments.length || !km.duration) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  const dur = km.duration;
+
+  // proportional colored timeline
+  $("kmBar").innerHTML = km.segments.map(s => {
+    const pct = Math.max(0, (s.end - s.start) / dur * 100);
+    const label = pct > 9 ? s.key : "";   // only label segments wide enough to read
+    return `<div class="kmSeg" style="width:${pct}%;background:${keyColor(s.key)}"
+                 title="${s.key} · ${fmtClock(s.start)}–${fmtClock(s.end)}">${label}</div>`;
+  }).join("");
+
+  // list: overall, then each change point
+  const rows = [];
+  if (!km.changes.length) {
+    rows.push(`<div class="kmRow kmNone">No clear key changes —
+               <span class="kmKey" style="color:${keyColor(km.overall)}">&nbsp;${km.overall}</span>
+               &nbsp;throughout.</div>`);
+  } else {
+    rows.push(`<div class="kmRow"><span class="kmDot" style="background:${keyColor(km.segments[0].key)}"></span>
+               <span class="kmTime">${fmtClock(0)}</span>
+               <span class="kmKey">${km.segments[0].key}</span></div>`);
+    for (const s of km.segments.slice(1)) {
+      rows.push(`<div class="kmRow"><span class="kmDot" style="background:${keyColor(s.key)}"></span>
+                 <span class="kmTime">${fmtClock(s.start)}</span>
+                 <span class="kmKey">${s.key}</span>
+                 <span class="kmTime" style="min-width:0">change</span></div>`);
+    }
+  }
+  $("kmList").innerHTML = rows.join("");
+}
+
+function tempoColor(bpm) {
+  // slow → blue, fast → red, across the usual 70–185 BPM range
+  const f = Math.max(0, Math.min(1, (bpm - 70) / (185 - 70)));
+  return `hsl(${Math.round(210 - f * 210)} 62% 50%)`;
+}
+
+function renderTempoMap(tm) {
+  const box = $("tempoMap");
+  if (!tm || !tm.segments || !tm.segments.length || !tm.duration) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  const dur = tm.duration;
+
+  $("tmBar").innerHTML = tm.segments.map(s => {
+    const pct = Math.max(0, (s.end - s.start) / dur * 100);
+    const label = pct > 9 ? s.bpm.toFixed(0) : "";
+    return `<div class="kmSeg" style="width:${pct}%;background:${tempoColor(s.bpm)}"
+                 title="${s.bpm.toFixed(1)} BPM · ${fmtClock(s.start)}–${fmtClock(s.end)}">${label}</div>`;
+  }).join("");
+
+  const rows = [];
+  if (!tm.changes.length) {
+    rows.push(`<div class="kmRow kmNone">No tempo changes —
+               <span class="kmKey" style="color:${tempoColor(tm.overall)}">&nbsp;${tm.overall.toFixed(1)} BPM</span>
+               &nbsp;throughout.</div>`);
+  } else {
+    rows.push(`<div class="kmRow"><span class="kmDot" style="background:${tempoColor(tm.segments[0].bpm)}"></span>
+               <span class="kmTime">${fmtClock(0)}</span>
+               <span class="kmKey">${tm.segments[0].bpm.toFixed(1)} BPM</span></div>`);
+    for (const s of tm.segments.slice(1)) {
+      rows.push(`<div class="kmRow"><span class="kmDot" style="background:${tempoColor(s.bpm)}"></span>
+                 <span class="kmTime">${fmtClock(s.start)}</span>
+                 <span class="kmKey">${s.bpm.toFixed(1)} BPM</span>
+                 <span class="kmTime" style="min-width:0">change</span></div>`);
+    }
+  }
+  $("tmList").innerHTML = rows.join("");
 }
 
 (async () => {

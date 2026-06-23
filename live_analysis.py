@@ -109,6 +109,134 @@ def key_from_chroma(chroma):
     }
 
 
+# Same ordering key_from_chroma walks: index 0..11 = major tonics, 12..23 = minor.
+KEY_NAMES_24 = [f"{n} major" for n in PITCH_NAMES] + [f"{n} minor" for n in PITCH_NAMES]
+
+
+def key_correlations(chroma):
+    """Correlation of a 12-bin chroma against all 24 keys as a length-24 array.
+
+    Indexed to match KEY_NAMES_24 (0..11 major, 12..23 minor).
+    """
+    v = chroma - chroma.mean()
+    nv = float(np.linalg.norm(v)) + 1e-9
+    out = np.empty(24)
+    for m, (_, p) in enumerate(_KS):
+        pn = float(np.linalg.norm(p)) + 1e-9
+        for tonic in range(12):
+            out[m * 12 + tonic] = float(np.dot(v, np.roll(p, tonic)) / (nv * pn))
+    return out
+
+
+def _mode_filter(labels, k):
+    """Majority-vote smoothing over a k-wide window — kills single-frame blips."""
+    if k <= 1 or len(labels) < k:
+        return labels
+    half = k // 2
+    out = list(labels)
+    for i in range(len(labels)):
+        window = labels[max(0, i - half):i + half + 1]
+        out[i] = max(set(window), key=window.count)
+    return out
+
+
+def _enforce_min_run(labels, min_steps):
+    """Dissolve any run shorter than min_steps into its longer neighbour.
+
+    Repeated until every surviving segment is long enough — this is what keeps a
+    brief borrowed chord or a noisy patch from registering as a key change.
+    """
+    labels = list(labels)
+    while True:
+        runs, i = [], 0
+        while i < len(labels):
+            j = i
+            while j + 1 < len(labels) and labels[j + 1] == labels[i]:
+                j += 1
+            runs.append((labels[i], i, j))   # label, start, end (inclusive)
+            i = j + 1
+        if len(runs) <= 1:
+            return labels
+        short = min(runs, key=lambda r: r[2] - r[1])
+        if (short[2] - short[1] + 1) >= min_steps:
+            return labels
+        idx = runs.index(short)
+        prev_r = runs[idx - 1] if idx > 0 else None
+        next_r = runs[idx + 1] if idx < len(runs) - 1 else None
+        if prev_r and next_r:
+            target = prev_r if (prev_r[2] - prev_r[1]) >= (next_r[2] - next_r[1]) else next_r
+        else:
+            target = prev_r or next_r
+        for p in range(short[1], short[2] + 1):
+            labels[p] = target[0]
+
+
+def _flux_envelope(x, sr, hop=512, win=1024):
+    """Spectral-flux onset envelope for the whole signal; returns (flux, fps).
+
+    Same computation estimate_bpm uses, factored out so the tempo map can slice
+    one envelope into windows instead of re-FFTing per window.
+    """
+    n_frames = (len(x) - win) // hop
+    if n_frames < 16:
+        return None, sr / hop
+    w = np.hanning(win).astype(np.float32)
+    idx = np.arange(win)[None, :] + hop * np.arange(n_frames)[:, None]
+    spec = np.abs(np.fft.rfft(x[idx] * w, axis=1))[:, 1:512]
+    flux = np.zeros(n_frames)
+    flux[1:] = np.maximum(np.diff(spec, axis=0), 0.0).sum(axis=1)
+    return flux, sr / hop
+
+
+def _bpm_from_flux(flux, fps, lo=50, hi=210):
+    """Autocorrelation BPM from a flux slice; returns (bpm, strength) or None.
+
+    Mirrors the lag search in estimate_bpm but leaves octave folding to the
+    caller (the tempo map folds toward the overall tempo, not a fixed range).
+    """
+    f = flux - flux.mean()
+    n = len(f)
+    e0 = float(np.dot(f, f))
+    if e0 <= 0 or n < 16:
+        return None
+    min_lag = max(2, int(60 / hi * fps))
+    max_lag = min(n - 8, int(np.ceil(60 / lo * fps)))
+    if max_lag <= min_lag:
+        return None
+    ac = np.zeros(max_lag + 1)
+    for lag in range(min_lag, max_lag + 1):
+        ac[lag] = float(np.dot(f[:n - lag], f[lag:])) / (e0 * (n - lag) / n)
+    best_lag = int(np.argmax(ac[min_lag:max_lag + 1])) + min_lag
+    best_val = ac[best_lag]
+    if best_val < 0.05:
+        return None
+    half = round(best_lag / 2)
+    if half >= min_lag and ac[half] > 0.8 * best_val:
+        best_lag = half
+    lag = float(best_lag)
+    if min_lag < best_lag < max_lag:
+        a, b, c = ac[best_lag - 1], ac[best_lag], ac[best_lag + 1]
+        denom = a - 2 * b + c
+        if abs(denom) > 1e-9:
+            lag = best_lag + 0.5 * (a - c) / denom
+    return float(60 * fps / lag), float(best_val)
+
+
+def _fold_to_octave(bpm, ref):
+    """Halve/double bpm until it sits in the same tempo octave as ref.
+
+    Snaps half-/double-time detection jitter onto the overall tempo so it
+    doesn't masquerade as a tempo change.
+    """
+    if bpm <= 0:
+        return bpm
+    while bpm < ref / 1.41:
+        bpm *= 2
+    while bpm > ref * 1.41:
+        bpm /= 2
+    return bpm
+
+
 class LiveAnalyzer:
     """Holds the short-term smoothing state between successive estimates."""
 
@@ -215,6 +343,179 @@ class LiveAnalyzer:
         norm = float(np.linalg.norm(chroma)) + 1e-9
         self.chroma_smooth = 0.75 * self.chroma_smooth + 0.25 * (chroma / norm)
         return key_from_chroma(self.chroma_smooth)
+
+    # ---- key map over time ---------------------------------------------
+    def chromagram(self, x, sr, win=8192, hop=4096):
+        """Per-frame 12-bin chroma for the whole signal; returns (frames, dt)."""
+        if len(x) < win:
+            return np.zeros((0, 12)), hop / sr
+        pc, bins = self._key_index(sr)
+        w = np.hanning(win).astype(np.float32)
+        n_frames = (len(x) - win) // hop + 1
+        chroma = np.zeros((n_frames, 12))
+        for f in range(n_frames):
+            seg = x[f * hop:f * hop + win] * w
+            mag = np.abs(np.fft.rfft(seg))
+            row = np.zeros(12)
+            np.add.at(row, pc, mag[bins])
+            chroma[f] = row
+        return chroma, hop / sr
+
+    def key_map(self, x, sr, win_s=6.0, hop_s=1.0, min_seg_s=10.0, switch_margin=0.05):
+        """Segment a file into stable key regions and flag obvious changes.
+
+        Estimates the key in a sliding window, but biases every step toward the
+        whole-file (overall) key by ``switch_margin`` and dissolves any region
+        shorter than ``min_seg_s`` — so only sustained, clearly-different keys
+        register as a change, not passing chords or noisy passages.
+        """
+        chroma, dt = self.chromagram(x, sr)
+        n = len(chroma)
+        duration = len(x) / sr
+        if n == 0:
+            return None
+
+        total = chroma.sum(axis=0)
+        overall = key_from_chroma(total)
+        overall_idx = int(np.argmax(key_correlations(total)))
+
+        win_f = max(1, int(round(win_s / dt)))
+        step_f = max(1, int(round(hop_s / dt)))
+
+        half = win_f // 2
+        times, labels, scores = [], [], []
+        for center in range(0, n, step_f):
+            a, b = max(0, center - half), min(n, center + half)   # window centred on t
+            seg = chroma[a:b].sum(axis=0)
+            corr = key_correlations(seg)
+            biased = corr.copy()
+            biased[overall_idx] += switch_margin     # favour the overall key
+            lbl = int(np.argmax(biased))
+            times.append(center * dt)
+            labels.append(lbl)
+            scores.append(float(corr[lbl]))
+
+        one_segment = {
+            "overall": overall["key"],
+            "duration": round(duration, 1),
+            "segments": [{"start": 0.0, "end": round(duration, 1),
+                          "key": overall["key"], "confidence": overall["confidence"]}],
+            "changes": [],
+        }
+        if len(labels) <= 1:
+            return one_segment
+
+        labels = _mode_filter(labels, 3)
+        labels = _enforce_min_run(labels, max(1, int(round(min_seg_s / hop_s))))
+
+        segments, i = [], 0
+        while i < len(labels):
+            j = i
+            while j + 1 < len(labels) and labels[j + 1] == labels[i]:
+                j += 1
+            end_t = times[j + 1] if j + 1 < len(times) else duration
+            run_scores = scores[i:j + 1]
+            segments.append({
+                "start": round(times[i], 1),
+                "end": round(end_t, 1),
+                "key": KEY_NAMES_24[labels[i]],
+                "confidence": round(max(0.0, min(1.0, sum(run_scores) / len(run_scores))), 3),
+            })
+            i = j + 1
+
+        return {
+            "overall": overall["key"],
+            "duration": round(duration, 1),
+            "segments": segments,
+            "changes": [s["start"] for s in segments[1:]],
+        }
+
+    # ---- tempo map over time -------------------------------------------
+    def tempo_map(self, x, sr, win_s=8.0, hop_s=2.0, min_seg_s=12.0):
+        """Segment a file into stable tempo regions and flag obvious changes.
+
+        Estimates BPM in a sliding window, folds each estimate into the overall
+        tempo's octave (so half-/double-time jitter doesn't read as a change),
+        snaps anything within tolerance to the overall tempo, then dissolves
+        short regions and merges neighbours that differ by less than the
+        tolerance — so only sustained, clearly different tempos register.
+        """
+        flux, fps = _flux_envelope(x, sr)
+        duration = len(x) / sr
+        overall = _bpm_from_flux(flux, fps) if flux is not None else None
+        if overall is None:
+            return None
+        # fold the overall into the usual 70–185 display octave
+        overall_bpm = _fold_to_octave(overall[0], 120.0)
+        tol = max(3.0, 0.03 * overall_bpm)
+
+        win_f = max(16, int(round(win_s * fps)))
+        step_f = max(1, int(round(hop_s * fps)))
+        half, n = win_f // 2, len(flux)
+
+        times, bpms = [], []
+        for center in range(0, n, step_f):
+            a, b = max(0, center - half), min(n, center + half)
+            res = _bpm_from_flux(flux[a:b], fps)
+            times.append(center / fps)
+            if res is None:
+                bpms.append(None)
+                continue
+            bpm = _fold_to_octave(res[0], overall_bpm)
+            if abs(bpm - overall_bpm) <= tol:      # favour the overall tempo
+                bpm = overall_bpm
+            bpms.append(bpm)
+        # fill gaps (silent windows) with the overall tempo
+        bpms = [overall_bpm if v is None else v for v in bpms]
+
+        one_segment = {
+            "overall": round(overall_bpm, 1),
+            "duration": round(duration, 1),
+            "segments": [{"start": 0.0, "end": round(duration, 1),
+                          "bpm": round(overall_bpm, 1)}],
+            "changes": [],
+        }
+        if len(bpms) <= 1:
+            return one_segment
+
+        labels = _mode_filter([round(v) for v in bpms], 3)
+        labels = _enforce_min_run(labels, max(1, int(round(min_seg_s / hop_s))))
+
+        # build segments, representative BPM = median of the window BPMs in the run
+        segments, i = [], 0
+        while i < len(labels):
+            j = i
+            while j + 1 < len(labels) and labels[j + 1] == labels[i]:
+                j += 1
+            end_t = times[j + 1] if j + 1 < len(times) else duration
+            run = sorted(bpms[i:j + 1])
+            segments.append({"start": round(times[i], 1), "end": round(end_t, 1),
+                             "_bpm": run[len(run) // 2], "_len": (j - i + 1)})
+            i = j + 1
+
+        # merge adjacent segments whose tempos differ by less than the tolerance:
+        # those aren't an obvious change. Keep the longer segment's tempo.
+        merged = True
+        while merged and len(segments) > 1:
+            merged = False
+            for k in range(len(segments) - 1):
+                if abs(segments[k]["_bpm"] - segments[k + 1]["_bpm"]) < tol:
+                    a, b = segments[k], segments[k + 1]
+                    keep = a if a["_len"] >= b["_len"] else b
+                    segments[k] = {"start": a["start"], "end": b["end"],
+                                   "_bpm": keep["_bpm"], "_len": a["_len"] + b["_len"]}
+                    del segments[k + 1]
+                    merged = True
+                    break
+
+        segs = [{"start": s["start"], "end": s["end"], "bpm": round(s["_bpm"], 1)}
+                for s in segments]
+        return {
+            "overall": round(overall_bpm, 1),
+            "duration": round(duration, 1),
+            "segments": segs,
+            "changes": [s["start"] for s in segs[1:]],
+        }
 
     # ---- tuning (cents vs A=440) ----------------------------------------
     def estimate_tuning(self, x, sr):

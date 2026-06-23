@@ -65,8 +65,8 @@ app = BUNDLE(
     info_plist={
         "CFBundleName": "Idea Recorder",
         "CFBundleDisplayName": "Idea Recorder",
-        "CFBundleShortVersionString": "1.4.1",
-        "CFBundleVersion": "1.4.1",
+        "CFBundleShortVersionString": "1.4.2",
+        "CFBundleVersion": "1.4.2",
         # Built on Apple Silicon → arm64 app; on Intel → x86_64. Both run on
         # macOS 11+; arm64 binaries are required (not just preferred) on M-series.
         "LSMinimumSystemVersion": "11.0",

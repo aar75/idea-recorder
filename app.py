@@ -745,7 +745,7 @@ class Handler(BaseHTTPRequestHandler):
                 path = self._read_body().get("path")
                 if not path:
                     script = ('POSIX path of (choose folder with prompt '
-                              '"Choose where Idea Recorder saves captures")')
+                              '"Choose where The Dashboard saves captures")')
                     out = subprocess.run(["osascript", "-e", script],
                                          capture_output=True, text=True, timeout=300)
                     if out.returncode != 0:        # user cancelled
@@ -817,7 +817,7 @@ def main():
     CAPTURES.mkdir(parents=True, exist_ok=True)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     url = f"http://127.0.0.1:{args.port}"
-    print(f"Idea Recorder UI: {url}")
+    print(f"The Dashboard UI: {url}")
 
     # As a bundled .app there's no terminal to open the browser, so do it here.
     if args.open or FROZEN:

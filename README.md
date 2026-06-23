@@ -38,13 +38,19 @@ filling your drive.
   continuously* to stream everything straight to disk until you stop. Disk
   writes run on a separate thread so the audio path never glitches.
 - **Camera buffer (companion video)** — optionally enable a webcam to roll a
-  *silent* video buffer in the browser alongside the audio. Save the rolling
-  buffer or stop a continuous recording and the matching video is exported right
-  next to the audio file, sharing its name (a `.webm`/`.mp4` beside
-  `idea_2026-06-13_14-22-05_Cs_min_122bpm.wav`). Capture happens in the browser,
-  so the camera permission prompt comes from your browser — the app itself never
-  touches the camera. Each capture card plays and downloads the paired video,
-  and deleting the audio removes its companion too.
+  video buffer in the browser alongside the audio. Save the rolling buffer or
+  stop a continuous recording and a matching video is exported right next to the
+  audio file, sharing its name (a `.webm`/`.mp4` beside
+  `idea_2026-06-13_14-22-05_Cs_min_122bpm.wav`). The buffer is recorded as short
+  self-contained segments and stitched together server-side with ffmpeg, so the
+  saved clip is correctly timed rather than a stray one-second fragment. Capture
+  happens in the browser, so the camera permission prompt comes from your browser
+  — the app itself never touches the camera. Each capture card plays and
+  downloads the paired video, and deleting the audio removes its companion too.
+- **Pick which channels go into the video** — a per-input channel selector under
+  the camera lets you choose which channels of your recording interface are mixed
+  (down to stereo) into the video's audio track via ffmpeg. Uncheck everything
+  for a silent video; the full multitrack WAV is always saved untouched alongside.
 - **Dominant key + tempo in the filename** — when a confident reading is
   available at save time, files are named like
   `idea_2026-06-13_14-22-05_Cs_min_122bpm.wav` (`#` becomes `s`). When the

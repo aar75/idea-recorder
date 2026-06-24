@@ -4,351 +4,215 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Dashboard</title>
+<link rel="stylesheet" href="/theme.css">
 <style>
-  :root {
-    --bg1: #f5f7ff;
-    --bg2: #eaf0ff;
-    --panel: #ffffff;
-    --panel2: #f3f6fc;
-    --text: #131726;
-    --dim: #707892;
-    --accent: #5b6cff;          /* vivid indigo — interactive / live */
-    --accent-soft: #eef0ff;
-    --rec: #ff4d6d;             /* energetic coral — record / save */
-    --rec2: #ff7a45;
-    --green: #14c98e;
-    --border: #e6e9f2;
-    --shadow: 0 1px 2px rgba(20, 30, 80, .04), 0 8px 24px rgba(20, 30, 80, .06);
-    --shadow-lg: 0 8px 30px rgba(91, 108, 255, .28);
-    --radius: 16px;
-  }
-  * { box-sizing: border-box; }
   body {
-    margin: 0;
-    min-height: 100vh;
-    background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 100%);
-    background-attachment: fixed;
-    color: var(--text);
-    font: 15px/1.5 -apple-system, "SF Pro Text", Helvetica, Arial, sans-serif;
+    margin: 0; min-height: 100vh; background: var(--surface);
+    color: var(--ink); font: 15px/1.5 var(--font-body);
     -webkit-font-smoothing: antialiased;
-    display: flex;
-    justify-content: center;
-    padding: 44px 16px 72px;
+    display: flex; justify-content: center; padding: 40px 16px 72px;
   }
-  main { width: 100%; max-width: 560px; }
-  h1 {
-    font-size: 26px; font-weight: 800; margin: 0 0 4px; letter-spacing: -.02em;
-    display: flex; align-items: center; gap: 11px;
-  }
-  h1 .dot {
-    width: 13px; height: 13px; border-radius: 50%;
-    background: #c7cde0; flex: none; transition: background .25s, box-shadow .25s;
-  }
-  h1 .dot.live { background: var(--rec); box-shadow: 0 0 0 5px rgba(255, 77, 109, .18); animation: pulse 1.6s infinite; }
-  @keyframes pulse { 50% { box-shadow: 0 0 0 9px rgba(255, 77, 109, 0); } }
-  .sub { color: var(--dim); margin: 0 0 26px; font-size: 14px; }
+  main { width: 100%; max-width: 680px; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand h1 { margin: 0; font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
+  .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: #c7cce0; flex: none; transition: background .25s; }
+  .brand .dot.live { background: var(--red); animation: irRingR 1.8s infinite; }
+  .statchip { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--dim); letter-spacing: .06em; }
 
   .panel {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
-    box-shadow: var(--shadow);
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; margin-bottom: 14px;
   }
   .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-  label { font-size: 11px; font-weight: 600; color: var(--dim); display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
-  select, input[type=number] {
-    background: var(--panel2); color: var(--text);
-    border: 1px solid var(--border); border-radius: 10px;
-    padding: 10px 12px; font-size: 14px; width: 100%;
-    appearance: none; -webkit-appearance: none;
-    transition: border-color .15s, box-shadow .15s;
-  }
-  select {
-    padding-right: 34px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23707892' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    cursor: pointer;
-  }
-  select:hover { border-color: #cfd6ea; }
-  select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91, 108, 255, .15); }
+  .grid2 { display: flex; gap: 12px; margin-bottom: 14px; }
   .field { flex: 1; min-width: 110px; }
   .field.grow { flex: 3; min-width: 220px; }
 
-  button {
-    border: 1px solid var(--border); border-radius: 11px; padding: 10px 18px;
-    font-size: 14px; font-weight: 600; cursor: pointer;
-    background: var(--panel); color: var(--text);
-    transition: transform .08s, filter .15s, background .15s, color .15s, border-color .15s;
+  label, .lbl { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--dim);
+    display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .08em; }
+  select, input[type=number] {
+    background: var(--field); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 7px; padding: 10px 12px; font-size: 14px; width: 100%;
+    font-family: var(--font-body); appearance: none; -webkit-appearance: none;
+    transition: border-color .15s, box-shadow .15s;
   }
-  button:hover { border-color: #cfd6ea; background: var(--panel2); }
-  button:active { transform: scale(.97); }
-  button:disabled { opacity: .45; cursor: default; }
-  #toggle {
-    background: var(--accent); color: #fff; border-color: transparent;
-    box-shadow: 0 4px 14px rgba(91, 108, 255, .25);
+  select {
+    padding-right: 34px; cursor: pointer; background-repeat: no-repeat; background-position: right 12px center;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%239aa0ac' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
   }
-  #toggle:hover { background: #4a5bff; }
-  #toggle.live {
-    background: var(--accent-soft); color: var(--accent);
-    border-color: rgba(91, 108, 255, .35); box-shadow: none;
-  }
+  select:focus, input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(79, 107, 237, .15); }
 
-  #saveBtn {
-    width: 100%; padding: 20px; font-size: 17px; font-weight: 700; letter-spacing: -.01em;
-    background: linear-gradient(135deg, var(--rec) 0%, var(--rec2) 100%);
-    color: #fff; border: none; border-radius: var(--radius); margin-bottom: 20px;
-    box-shadow: var(--shadow-lg);
-  }
-  #saveBtn:not(:disabled):hover { filter: brightness(1.05); transform: translateY(-1px); }
-  #saveBtn:not(:disabled):active { transform: scale(.99); }
-  #saveBtn:disabled { background: var(--panel2); color: var(--dim); box-shadow: none; }
+  .meta { font-family: var(--font-mono); color: var(--dim); font-size: 12px; }
 
+  /* meters — one row per channel, single wide bar for mono */
   .meterWrap { margin-top: 18px; }
-  /* One row per input channel; collapses to a single wide bar for mono. */
-  .meters { display: grid; grid-template-columns: 1fr; gap: 6px; }
-  .meters.multi { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 7px 14px; }
+  .meters { display: grid; grid-template-columns: 1fr; gap: 7px; }
+  .meters.multi { grid-template-columns: 1fr 1fr; gap: 7px 16px; }
   .chMeter { display: flex; align-items: center; gap: 8px; }
-  .chLabel {
-    flex: none; width: 26px; font-size: 10px; font-weight: 700; color: var(--dim);
-    font-variant-numeric: tabular-nums; text-align: right; letter-spacing: .02em;
-  }
-  .chBar {
-    flex: 1; height: 14px; border-radius: 7px; background: var(--panel2);
-    border: 1px solid var(--border); overflow: hidden;
-  }
-  .meters:not(.multi) .chBar { height: 16px; border-radius: 8px; }
-  .chBar > div {
-    height: 100%; width: 0%;
-    background: linear-gradient(90deg, var(--green) 0%, var(--green) 60%, #ffc24b 80%, var(--rec) 100%);
-    border-radius: 7px;
-    transition: width 80ms linear;
-  }
-  .meterLabels { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); margin-top: 10px; }
+  .chLabel { flex: none; width: 22px; font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    color: var(--dim); font-variant-numeric: tabular-nums; text-align: right; }
+  .chBar { flex: 1; height: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--meter-track-h); }
+  .meters:not(.multi) .chBar { height: 14px; }
+  .chBar > div { height: 100%; width: 0%; background: var(--meter-fill-h); transition: width 80ms linear; }
+  .meterLabels { display: flex; justify-content: space-between; font-family: var(--font-mono);
+    font-size: 11px; color: var(--dim); margin-top: 11px; }
+  #meterDb, #fill { font-variant-numeric: tabular-nums; }
 
-  /* live key + tempo readout */
-  .live { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
-  .liveCard {
-    background: var(--panel2); border: 1px solid var(--border);
-    border-radius: 12px; padding: 12px 14px;
-  }
-  .liveLabel { font-size: 10px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
-  .liveVal { font-size: 28px; font-weight: 800; letter-spacing: -.02em; margin-top: 2px; line-height: 1.1; }
+  /* live readout (Key / Tempo / ±440) */
+  .live { display: grid; grid-template-columns: 1fr 1fr 1fr; margin-top: 18px;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .liveCard { padding: 13px 14px; }
+  .liveCard + .liveCard { border-left: 1px solid var(--line); }
+  .liveLabel { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--dim);
+    text-transform: uppercase; letter-spacing: .08em; }
+  .liveVal { font-family: var(--font-display); font-size: 27px; font-weight: 700; letter-spacing: -.01em;
+    margin-top: 2px; line-height: 1.15; }
   .liveVal .liveUnit { font-size: 13px; font-weight: 600; color: var(--dim); margin-left: 4px; }
-  .liveSub { font-size: 11px; color: var(--dim); margin-top: 3px; }
-  .liveCard.locked { border-color: rgba(91,108,255,.4); background: var(--accent-soft); }
-  .liveCard.locked .liveSub { color: var(--accent); font-weight: 600; }
-  .liveWide { grid-column: 1 / -1; }
+  .liveSub { font-family: var(--font-mono); font-size: 11px; color: var(--dim); margin-top: 2px; }
+  .liveCard.locked .liveSub { color: var(--ink); font-weight: 700; }
+  #liveCents.accent, .liveCard .liveVal.accent { color: var(--red); }
 
-  /* live tuner */
-  #tunerToggle {
-    background: var(--accent); color: #fff; border-color: transparent;
-    box-shadow: 0 4px 14px rgba(91, 108, 255, .25);
-  }
-  #tunerToggle:hover { background: #4a5bff; }
-  #tunerToggle.live {
-    background: var(--accent-soft); color: var(--accent);
-    border-color: rgba(91, 108, 255, .35); box-shadow: none;
-  }
+  /* transport */
+  .transport { display: flex; gap: 12px; margin-bottom: 14px; }
+  #saveBtn { flex: 3; padding: 18px; font-size: 16px; border-radius: 10px; }
+  .recordBtn { flex: 1.1; padding: 18px; border-radius: 10px; display: flex; align-items: center;
+    justify-content: center; gap: 8px; border: 1.5px solid var(--dark); background: var(--card);
+    color: var(--ink); font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: .04em; cursor: pointer; }
+  .recordBtn:disabled { opacity: .45; cursor: default; }
+  .recordBtn .recDot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); flex: none; }
+  .recordBtn:disabled .recDot { background: #c7cce0; }
+  .recordBtn.recording { background: var(--red); color: #fff; border-color: transparent; box-shadow: 0 6px 18px rgba(255,59,48,.3); }
+  .recordBtn.recording .recDot { background: #fff; animation: irPulse 1.4s infinite; }
+
+  h2 { font-family: var(--font-mono); font-size: 11px; color: var(--dim); font-weight: 700;
+    margin: 24px 0 12px; text-transform: uppercase; letter-spacing: .1em; }
+
+  /* strip overlay toggle */
+  .overlaySwitch { display: flex; align-items: flex-start; gap: 11px; background: var(--card);
+    border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; cursor: pointer; }
+  .overlaySwitch input { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--blue); flex: none; cursor: pointer; }
+  .overlaySwitch .ov-text { font-size: 14px; font-weight: 600; color: var(--ink); }
+  .overlaySwitch .ov-text small { display: block; font-family: var(--font-mono); font-size: 12px;
+    font-weight: 500; color: var(--dim); margin-top: 4px; line-height: 1.45; }
+
   /* camera */
-  #cameraToggle {
-    background: var(--accent); color: #fff; border-color: transparent;
-    box-shadow: 0 4px 14px rgba(91, 108, 255, .25);
-  }
-  #cameraToggle:hover { background: #4a5bff; }
-  #cameraToggle.live {
-    background: var(--accent-soft); color: var(--accent);
-    border-color: rgba(91, 108, 255, .35); box-shadow: none;
-  }
-  #cameraPreview {
-    width: 100%; border-radius: 12px; background: #0b0e18;
-    aspect-ratio: 16 / 9; object-fit: cover; display: block;
-    transform: scaleX(-1);   /* mirror like a webcam preview */
-  }
-  .capture video {
-    width: 100%; margin-top: 10px; border-radius: 10px;
-    background: #0b0e18; max-height: 260px;
-  }
-  .camRecDot {
-    display: none; width: 9px; height: 9px; border-radius: 50%;
-    background: var(--rec); animation: pulse 1.4s infinite;
-  }
+  .camHead { display: flex; gap: 12px; align-items: flex-end; }
+  #cameraToggle { white-space: nowrap; }
+  #cameraToggle.live { background: var(--field); border-color: var(--border2); color: var(--ink); }
+  #cameraPreview { width: 100%; border-radius: 8px; background: #0b0e18; aspect-ratio: 16/9;
+    object-fit: cover; display: block; margin-top: 14px; transform: scaleX(-1); }
+  .camStat { display: flex; justify-content: space-between; font-family: var(--font-mono);
+    font-size: 11px; color: var(--dim); margin-top: 8px; }
+  .camRecDot { display: none; width: 9px; height: 9px; border-radius: 50%; background: var(--red); animation: irPulse 1.4s infinite; }
   #cameraWrap.continuous .camRecDot { display: inline-block; }
-  .bundleAudio { margin-top: 14px; }
-  .chanPicker { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 2px; }
-  .chanChip {
-    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-    background: var(--panel2); border: 1px solid var(--border);
-    border-radius: 9px; padding: 6px 11px; font-size: 12px; font-weight: 600;
-    color: var(--dim); text-transform: none; letter-spacing: 0;
-    user-select: none; transition: border-color .15s, color .15s, background .15s;
-  }
-  .chanChip:has(input:checked) {
-    border-color: rgba(91,108,255,.4); background: var(--accent-soft); color: var(--accent);
-  }
-  .chanChip input { accent-color: var(--accent); margin: 0; }
+  .bundleAudio { margin-top: 12px; }
+  .chanPicker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+  .chanChip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+    background: var(--field); border: 1px solid var(--border); border-radius: 5px; padding: 5px 9px;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--dim); transition: all .15s; }
+  .chanChip:has(input:checked) { background: var(--dark); border-color: var(--dark); color: #fff; }
+  .chanChip input { display: none; }
   .bundleHint { font-size: 11px; color: var(--dim); margin-top: 8px; line-height: 1.45; }
+  .camHint { font-size: 12px; color: var(--dim); margin-top: 10px; line-height: 1.5; }
 
-  .tuner { margin-top: 18px; text-align: center; }
-  .tunerNote {
-    font-size: 60px; font-weight: 800; letter-spacing: -.03em; line-height: 1;
-    color: var(--dim); transition: color .15s;
-  }
-  .tuner.lit .tunerNote { color: var(--text); }
-  .tunerNote .tunerOct { font-size: 22px; font-weight: 700; color: var(--dim); margin-left: 3px; vertical-align: super; }
-  .tunerCents { font-size: 14px; font-weight: 700; color: var(--dim); margin-top: 5px; min-height: 18px; letter-spacing: .01em; }
+  /* tuner */
+  #tunerToggle.live { background: var(--field); border-color: var(--border2); color: var(--ink); }
+  .tuner { margin-top: 16px; text-align: center; }
+  .tunerNote { font-family: var(--font-display); font-size: 50px; font-weight: 700; line-height: 1; color: var(--dim); transition: color .15s; }
+  .tuner.lit .tunerNote { color: var(--ink); }
+  .tunerNote .tunerOct { font-size: 18px; font-weight: 600; color: var(--dim); margin-left: 3px; vertical-align: super; }
+  .tunerCents { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--dim); margin-top: 6px; min-height: 16px; }
   .tuner.intune .tunerCents { color: var(--green); }
-  .tuner.flat .tunerCents, .tuner.sharp .tunerCents { color: var(--rec); }
-  .tunerScale {
-    position: relative; height: 46px; margin: 16px 0 5px;
-    border-radius: 12px; background: var(--panel2); border: 1px solid var(--border); overflow: hidden;
-  }
-  .tunerZone { position: absolute; top: 0; bottom: 0; left: 45%; width: 10%; background: rgba(20, 201, 142, .12); }
-  .tunerCenter { position: absolute; left: 50%; top: 6px; bottom: 6px; width: 2px; background: #cfd6ea; transform: translateX(-50%); }
+  .tuner.flat .tunerCents, .tuner.sharp .tunerCents { color: var(--red); }
+  .tunerScale { position: relative; height: 40px; margin: 14px 0 5px; background: var(--field); border: 1px solid var(--border); overflow: hidden; }
+  .tunerZone { position: absolute; top: 0; bottom: 0; left: 45%; width: 10%; background: rgba(47,207,107,.14); }
+  .tunerCenter { position: absolute; left: 50%; top: 5px; bottom: 5px; width: 2px; background: #cfd6ea; transform: translateX(-50%); }
   .tuner.intune .tunerCenter { background: var(--green); }
-  .tunerNeedle {
-    position: absolute; top: 4px; bottom: 4px; left: 50%; width: 4px;
-    background: var(--accent); border-radius: 3px; transform: translateX(-50%);
-    box-shadow: 0 0 0 4px rgba(91, 108, 255, .12);
-    transition: left .09s linear, background .15s, opacity .15s; opacity: .25;
-  }
-  .tuner.intune .tunerNeedle { background: var(--green); box-shadow: 0 0 0 4px rgba(20, 201, 142, .16); }
-  .tuner.flat .tunerNeedle, .tuner.sharp .tunerNeedle { background: var(--rec); box-shadow: 0 0 0 4px rgba(255, 77, 109, .14); }
-  .tunerScaleLabels { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); }
-  .tunerFreq { font-size: 12px; color: var(--dim); margin-top: 9px; font-variant-numeric: tabular-nums; }
+  .tunerNeedle { position: absolute; top: 3px; bottom: 3px; left: 50%; width: 3px; background: var(--blue);
+    transform: translateX(-50%); box-shadow: 0 0 0 3px rgba(79,107,237,.18);
+    transition: left .09s linear, background .15s, opacity .15s; opacity: .25; }
+  .tuner.intune .tunerNeedle { background: var(--green); box-shadow: 0 0 0 3px rgba(47,207,107,.18); }
+  .tuner.flat .tunerNeedle, .tuner.sharp .tunerNeedle { background: var(--red); box-shadow: 0 0 0 3px rgba(255,59,48,.16); }
+  .tunerScaleLabels { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--dim); }
+  .tunerFreq { font-family: var(--font-mono); font-size: 11px; color: var(--dim); margin-top: 9px; font-variant-numeric: tabular-nums; }
 
-  /* continuous record toggle */
-  .recordBtn {
-    width: 100%; padding: 13px; font-size: 14px; font-weight: 700;
-    border-radius: 13px; margin: -8px 0 20px;
-    display: flex; align-items: center; justify-content: center; gap: 9px;
-    background: var(--panel); color: var(--text); border: 1px solid var(--border);
-  }
-  .recordBtn .recDot {
-    width: 11px; height: 11px; border-radius: 50%; background: var(--rec); flex: none;
-  }
-  .recordBtn:disabled .recDot { background: #c7cde0; }
-  .recordBtn.recording {
-    background: var(--rec); color: #fff; border-color: transparent;
-    box-shadow: 0 6px 18px rgba(255,77,109,.3);
-  }
-  .recordBtn.recording .recDot { background: #fff; animation: pulse 1.4s infinite; }
-
-  /* "saving to" bar */
-  .savePath {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-    padding: 10px 12px; margin-bottom: 12px; box-shadow: var(--shadow);
-  }
-  .savePathText { font-size: 12px; color: var(--dim); overflow: hidden; }
-  .savePath code {
-    font-size: 12px; color: var(--text); background: var(--panel2);
-    padding: 2px 7px; border-radius: 6px; word-break: break-all;
-  }
+  /* saving-to bar + captures */
+  .savePath { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+  .savePathText { font-family: var(--font-mono); font-size: 12px; color: var(--dim); overflow: hidden; }
+  .savePath code { font-size: 12px; color: var(--ink); background: var(--field); padding: 2px 7px; border-radius: 5px; word-break: break-all; }
   .savePathBtns { display: flex; gap: 6px; flex: none; }
-  .ghostBtn {
-    flex: none; padding: 7px 12px; font-size: 12px; font-weight: 600;
-    border-radius: 9px; background: var(--panel2);
-  }
-  #meterDb { font-weight: 600; font-variant-numeric: tabular-nums; }
-  #fill { font-variant-numeric: tabular-nums; }
-
-  .toast {
-    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
-    background: var(--green); color: #fff; font-weight: 600;
-    padding: 12px 22px; border-radius: 12px; opacity: 0;
-    pointer-events: none; transition: opacity .25s, transform .25s; max-width: 90vw;
-    font-size: 14px; box-shadow: 0 8px 24px rgba(20, 30, 80, .18);
-  }
-  .toast.error { background: var(--rec); }
-  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
-
-  h2 { font-size: 12px; color: var(--dim); font-weight: 700; margin: 30px 0 12px; text-transform: uppercase; letter-spacing: .08em; }
-  .capture {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 14px; padding: 14px 16px; margin-bottom: 11px;
-    box-shadow: var(--shadow);
-    transition: transform .12s, box-shadow .12s;
-  }
-  .capture:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(20,30,80,.05), 0 12px 28px rgba(20,30,80,.09); }
+  .ghostBtn { flex: none; padding: 6px 11px; font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    border-radius: 6px; background: var(--field); border: 1px solid var(--border); color: var(--ink); cursor: pointer; }
+  .capture { background: var(--card); border: 1px solid var(--border); border-radius: 9px; padding: 14px 16px; margin-bottom: 11px; transition: transform .12s; }
+  .capture:hover { transform: translateY(-1px); }
   .capture.dragging { opacity: .5; }
   .capture .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .capture .name { font-weight: 700; font-size: 14px; word-break: break-all; display: flex; align-items: center; gap: 7px; }
-  .capture .grip {
-    cursor: grab; color: #c2c8db; font-size: 14px; flex: none;
-    user-select: none; line-height: 1;
-  }
+  .capture .name { font-family: var(--font-mono); font-weight: 700; font-size: 13px; word-break: break-all; display: flex; align-items: center; gap: 7px; }
+  .capture .grip { cursor: grab; color: #c2c8db; font-size: 14px; flex: none; user-select: none; line-height: 1; }
   .capture .grip:active { cursor: grabbing; }
-  .capture .meta { color: var(--dim); font-size: 12px; white-space: nowrap; }
+  .capture .meta { white-space: nowrap; }
   .capture .actions { display: flex; align-items: center; gap: 2px; flex: none; }
-  .capture audio { width: 100%; margin-top: 10px; height: 38px; }
-  .capture .iconBtn {
-    background: none; border: none; color: #9aa2bd; font-size: 14px;
-    padding: 5px 7px; cursor: pointer; border-radius: 7px;
-    transition: color .15s, background .15s; text-decoration: none; line-height: 1;
-  }
-  .capture .iconBtn:hover { color: var(--accent); background: var(--accent-soft); }
-  .capture .iconBtn.del:hover { color: var(--rec); background: #fff0f3; }
-  .dragHint { font-size: 11px; color: var(--dim); margin: -4px 0 12px; }
-  .empty {
-    color: var(--dim); font-size: 13px; text-align: center;
-    padding: 28px 16px; background: rgba(255,255,255,.5);
-    border: 1px dashed var(--border); border-radius: 14px;
-  }
+  .capture audio { width: 100%; margin-top: 10px; height: 36px; }
+  .capture video { width: 100%; margin-top: 10px; border-radius: 8px; background: #0b0e18; max-height: 260px; }
+  .capture .iconBtn { background: none; border: none; color: #9aa2bd; font-size: 14px; padding: 5px 7px;
+    cursor: pointer; border-radius: 6px; transition: color .15s, background .15s; text-decoration: none; line-height: 1; }
+  .capture .iconBtn:hover { color: var(--blue); background: var(--field); }
+  .capture .iconBtn.del:hover { color: var(--red); background: #fff0f3; }
+  .empty { color: var(--dim); font-size: 13px; text-align: center; padding: 26px 16px;
+    background: var(--card); border: 1px dashed var(--border); border-radius: 9px; }
 
-  /* drag-and-drop file analyzer */
-  .dropZone {
-    border: 2px dashed var(--border); border-radius: 16px;
-    background: rgba(255,255,255,.5); text-align: center;
-    padding: 26px 16px; cursor: pointer;
-    transition: border-color .15s, background .15s;
-  }
-  .dropZone:hover { border-color: #cfd6ea; }
-  .dropZone.over { border-color: var(--accent); background: var(--accent-soft); }
+  /* file analyzer */
+  .dropZone { border: 2px dashed #c7cbd4; border-radius: 10px; background: #fbfbfc; padding: 22px;
+    display: flex; align-items: center; gap: 16px; cursor: pointer; transition: border-color .15s, background .15s; }
+  .dropZone:hover { border-color: #b7bcc8; }
+  .dropZone.over { border-color: var(--blue); background: rgba(79,107,237,.06); }
   .dropZone.busy { cursor: progress; }
-  .dropIcon {
-    font-size: 26px; color: var(--accent); line-height: 1; margin-bottom: 8px;
-  }
-  .dropText { font-size: 14px; font-weight: 600; color: var(--text); }
-  .dropText span { display: block; font-size: 11px; font-weight: 500; color: var(--dim); margin-top: 4px; }
-  .dropResult .dropFile {
-    font-size: 12px; font-weight: 600; color: var(--dim);
-    word-break: break-all; margin-bottom: 12px;
-  }
-  .dropVals { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .dropVal {
-    background: var(--panel2); border: 1px solid var(--border);
-    border-radius: 12px; padding: 12px;
-  }
-  .dvLabel { display: block; font-size: 10px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
-  .dvNum { display: block; font-size: 26px; font-weight: 800; letter-spacing: -.02em; margin-top: 2px; }
+  .dropIcon { width: 46px; height: 46px; flex: none; border-radius: 10px; background: var(--dark);
+    display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; }
+  .dropText { font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--ink); }
+  .dropText span { display: block; font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--dim); margin-top: 3px; }
+  .dropResult { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .dropResult .dropFile { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--dim); word-break: break-all; margin-bottom: 14px; }
+  .dropVals { display: grid; grid-template-columns: 1fr 1fr 1fr; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .dropVal { padding: 12px 14px; }
+  .dropVal + .dropVal { border-left: 1px solid var(--line); }
+  .dvLabel { display: block; font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+  .dvNum { display: block; font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -.01em; margin-top: 2px; }
   .dvNum small { font-size: 12px; font-weight: 600; color: var(--dim); margin-left: 3px; }
-  #dropAnother { margin-top: 14px; }
+  #fCents { color: var(--red); }
+  #dropAnother { margin-top: 16px; }
 
-  /* key map over time */
-  .keyMap { margin-top: 16px; text-align: left; }
-  .kmTitle { font-size: 10px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
-  .kmBar { display: flex; height: 36px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
-  .kmSeg {
-    display: flex; align-items: center; justify-content: center; min-width: 0;
-    color: #fff; font-size: 11px; font-weight: 700; padding: 0 4px;
-    overflow: hidden; white-space: nowrap; text-shadow: 0 1px 2px rgba(0, 0, 0, .3);
-  }
-  .kmSeg + .kmSeg { border-left: 2px solid rgba(255, 255, 255, .85); }
-  .kmList { margin-top: 11px; font-size: 13px; }
-  .kmRow { display: flex; gap: 9px; align-items: center; padding: 3px 0; }
-  .kmTime { font-variant-numeric: tabular-nums; color: var(--dim); min-width: 44px; }
+  /* key / tempo maps */
+  .keyMap { margin-top: 18px; }
+  .kmTitle { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+  .kmBar { display: flex; height: 34px; border-radius: 7px; overflow: hidden; border: 1px solid var(--border); }
+  .kmSeg { display: flex; align-items: center; justify-content: center; min-width: 0; color: #fff;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 0 4px; overflow: hidden;
+    white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
+  .kmSeg + .kmSeg { border-left: 2px solid #fff; }
+  .kmList { margin-top: 10px; }
+  .kmRow { display: flex; gap: 9px; align-items: center; padding: 3px 0; font-size: 12px; }
+  .kmTime { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--dim); min-width: 42px; }
   .kmDot { width: 11px; height: 11px; border-radius: 3px; flex: none; }
-  .kmKey { font-weight: 600; }
+  .kmKey { font-weight: 600; color: var(--ink); }
   .kmNone { color: var(--dim); }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
-  <h1><span class="dot" id="dot"></span>The Dashboard</h1>
-  <p class="sub">Rolling backup of your interface — save the moment after you play it.</p>
+  <div class="topbar">
+    <div class="brand"><span class="dot" id="dot"></span><h1>The Dashboard</h1></div>
+    <span class="statchip" id="streamInfo"></span>
+    <button id="closePanel" class="ghostBtn" hidden style="margin-left:12px">✕ Close</button>
+  </div>
 
+  <!-- control panel -->
   <div class="panel">
-    <div class="row">
+    <div class="grid2">
       <div class="field grow">
         <label for="device">Input device</label>
         <select id="device"></select>
@@ -363,10 +227,10 @@
         </select>
       </div>
     </div>
-    <div class="row" style="margin-top:12px">
-      <button id="toggle">Start listening</button>
-      <button id="refresh" title="Re-scan devices">↻ Devices</button>
-      <span class="meta" id="streamInfo" style="color:var(--dim);font-size:12px"></span>
+    <div class="row">
+      <button id="toggle" class="ir-btn ir-btn--dark">Start listening</button>
+      <button id="refresh" class="ir-btn" title="Re-scan devices">↻ Devices</button>
+      <span class="meta" id="streamInfo2"></span>
     </div>
     <div class="meterWrap">
       <div id="meters" class="meters"></div>
@@ -384,51 +248,58 @@
         <div class="liveVal"><span id="liveBpm">—</span><span class="liveUnit" id="liveBpmUnit"></span></div>
         <div class="liveSub" id="liveBpmSub">listening…</div>
       </div>
-      <div class="liveCard liveWide">
-        <div class="liveLabel">Tuning vs 440</div>
-        <div class="liveVal"><span id="liveCents">—</span><span class="liveUnit" id="liveCentsUnit"></span></div>
+      <div class="liveCard">
+        <div class="liveLabel">±440 Hz</div>
+        <div class="liveVal accent"><span id="liveCents">—</span><span class="liveUnit" id="liveCentsUnit"></span></div>
         <div class="liveSub" id="liveCentsSub">listening…</div>
       </div>
     </div>
   </div>
 
-  <button id="saveBtn" disabled>Save the last minute</button>
-  <button id="recordBtn" class="recordBtn" disabled>
-    <span class="recDot"></span><span id="recordLabel">Record continuously</span>
-  </button>
+  <!-- transport -->
+  <div class="transport">
+    <button id="saveBtn" class="ir-btn ir-btn--primary" disabled>Save the last minute</button>
+    <button id="recordBtn" class="recordBtn" disabled>
+      <span class="recDot"></span><span id="recordLabel">Record</span>
+    </button>
+  </div>
 
-  <h2>Camera</h2>
+  <!-- show / hide the whole strip -->
+  <label class="overlaySwitch">
+    <input type="checkbox" id="overlayToggle" checked>
+    <span class="ov-text">Show the on-screen strip
+      <small>Hide the entire strip — capture keeps running in the background. Bring it back here, or by clicking the app's Dock icon.</small></span>
+  </label>
+
+  <!-- camera -->
+  <h2>Camera buffer</h2>
   <div class="panel">
-    <div class="row">
+    <div class="camHead">
       <div class="field grow">
         <label for="cameraDevice">Camera</label>
         <select id="cameraDevice"></select>
       </div>
-      <div class="field" style="display:flex;align-items:flex-end">
-        <button id="cameraToggle" style="width:100%">Enable camera</button>
-      </div>
+      <button id="cameraToggle" class="ir-btn">Enable camera</button>
     </div>
-    <div id="cameraWrap" hidden style="margin-top:14px">
+    <div id="cameraWrap" hidden>
       <video id="cameraPreview" autoplay muted playsinline></video>
-      <div class="meterLabels">
+      <div class="camStat">
         <span id="cameraInfo"></span>
         <span id="cameraBuf"><span class="camRecDot"></span></span>
       </div>
       <div class="bundleAudio">
-        <label>Audio bundled into video</label>
+        <span class="lbl">Audio bundled into video</span>
         <div id="channelPicker" class="chanPicker"></div>
         <div class="bundleHint">Channels of the recording input
           (<span id="bundleDevice">—</span>) are mixed into the video.
           Uncheck all for silent video; the full multitrack WAV is always saved.</div>
       </div>
     </div>
-    <p class="sub" style="margin:10px 0 0;font-size:12px">
-      Rolls a video buffer alongside the audio. Save or stop recording and a
-      matching video — with your chosen interface channels mixed in — is exported
-      next to the audio file.
-    </p>
+    <p class="camHint">Rolls a video buffer alongside the audio. Save or stop recording and a
+      matching video — with your chosen interface channels mixed in — is exported next to the audio file.</p>
   </div>
 
+  <!-- tuner -->
   <h2>Live tuner</h2>
   <div class="panel">
     <div class="row">
@@ -442,10 +313,9 @@
       </div>
     </div>
     <div class="row" style="margin-top:12px">
-      <button id="tunerToggle">Start tuner</button>
-      <span class="meta" id="tunerInfo" style="color:var(--dim);font-size:12px"></span>
+      <button id="tunerToggle" class="ir-btn ir-btn--dark">Start tuner</button>
+      <span class="meta" id="tunerInfo"></span>
     </div>
-
     <div id="tunerDisplay" class="tuner" hidden>
       <div class="tunerNote"><span id="tunerNote">—</span><span class="tunerOct" id="tunerOct"></span></div>
       <div class="tunerCents" id="tunerCentsTxt">play a note</div>
@@ -459,29 +329,31 @@
     </div>
   </div>
 
+  <!-- captures -->
   <h2>Captures</h2>
   <div class="savePath" id="savePath" hidden>
     <span class="savePathText">Saving to <code id="savePathDir">…</code></span>
     <span class="savePathBtns">
-      <button id="changeFolder" class="ghostBtn">Change…</button>
-      <button id="openFolder" class="ghostBtn">Open</button>
+      <button id="changeFolder" class="ghostBtn">CHANGE</button>
+      <button id="openFolder" class="ghostBtn">OPEN</button>
     </span>
   </div>
   <div id="captures"><p class="empty">Nothing saved yet.</p></div>
 
+  <!-- file analyzer -->
   <h2>Key &amp; tempo of a file</h2>
   <div class="dropZone" id="dropZone">
     <input type="file" id="fileInput" accept="audio/*,.wav,.aif,.aiff,.flac,.mp3,.ogg,.m4a,.aac,.wma,.mp4" hidden>
-    <div class="dropInner" id="dropInner">
-      <div class="dropIcon">♪</div>
-      <div class="dropText">Drop an audio file here<span>or click to choose · WAV, AIFF, FLAC, MP3, M4A, AAC, OGG</span></div>
+    <div class="dropIcon" id="dropIcon">↥</div>
+    <div class="dropInner" id="dropInner" style="flex:1">
+      <div class="dropText">Drop an audio file to analyze<span>WAV · AIFF · FLAC · MP3 · M4A · AAC · OGG — or a saved capture</span></div>
     </div>
-    <div class="dropResult" id="dropResult" hidden>
+    <div class="dropResult" id="dropResult" hidden style="flex:1">
       <div class="dropFile" id="dropFile"></div>
       <div class="dropVals">
         <div class="dropVal"><span class="dvLabel">Key</span><span class="dvNum" id="fKey">—</span></div>
         <div class="dropVal"><span class="dvLabel">Tempo</span><span class="dvNum" id="fBpm">—</span></div>
-        <div class="dropVal"><span class="dvLabel">Tuning vs 440</span><span class="dvNum" id="fCents">—</span></div>
+        <div class="dropVal"><span class="dvLabel">±440</span><span class="dvNum" id="fCents">—</span></div>
       </div>
       <div class="keyMap" id="keyMap" hidden>
         <div class="kmTitle">Key map</div>
@@ -498,45 +370,26 @@
   </div>
 </main>
 
-<div class="toast" id="toast"></div>
+<div class="ir-toast" id="toast"></div>
 
+<script src="/core.js"></script>
 <script>
-const $ = id => document.getElementById(id);
-let running = false;
-let recording = false;
-let smoothPeaks = [];
+const $ = IR.$;
+const api = IR.api, toast = IR.toast, fmtClock = IR.fmtClock;
+let running = false, recording = false, smoothPeaks = [];
 
-// ---- camera buffer (browser-side) ----
-// The rolling video buffer is recorded as a run of short, self-contained
-// segments (the recorder is rotated every SEG_SECONDS). Each segment is a
-// complete, valid clip, so on save we ship the recent ones and ffmpeg concats
-// them server-side into one correctly-timed file — slicing a single MediaRecorder
-// stream instead is what produced the old ~1-second clip.
-const SEG_SECONDS = 3;
-let cameraStream = null, videoMime = "";
-let segments = [];                      // [{blob, end}] finished segments
-let curRec = null, curChunks = [], segTimer = null;
-let videoContinuous = false, continuousStart = 0;
-const cameraActive = () => !!cameraStream;
 const bufferSeconds = () => +($("seconds").value) || 60;
-const videoExt = () => videoMime.includes("mp4") ? "mp4" : "webm";
 
-async function api(path, body) {
-  const res = await fetch(path, body !== undefined
-    ? { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) }
-    : undefined);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || res.statusText);
-  return data;
-}
-
-function toast(msg, isError) {
-  const t = $("toast");
-  t.textContent = msg;
-  t.className = "toast show" + (isError ? " error" : "");
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove("show"), 2600);
-}
+// camera buffer engine (shared core)
+const cam = IR.createCamera({
+  previewEl: $("cameraPreview"),
+  getBufferSeconds: bufferSeconds,
+  onContinuous: (on) => $("cameraWrap").classList.toggle("continuous", on),
+  // When this view gives up the camera, hand ownership back to the strip so it
+  // re-acquires the live feed (single-owner hand-off between the two windows).
+  onState: () => { setCameraUI(false); localStorage.setItem("ir-cam-owner", "strip"); },
+});
+const cameraActive = () => cam.isActive();
 
 let deviceList = [];
 
@@ -560,8 +413,7 @@ function fillTunerChannels() {
   csel.innerHTML = "";
   for (let i = 0; i < n; i++) {
     const opt = document.createElement("option");
-    opt.value = i;
-    opt.textContent = "Input " + (i + 1);
+    opt.value = i; opt.textContent = "Input " + (i + 1);
     if (i === remembered) opt.selected = true;
     csel.appendChild(opt);
   }
@@ -578,15 +430,15 @@ function setRunningUI(status) {
   running = status.running;
   $("dot").classList.toggle("live", running);
   $("toggle").textContent = running ? "Stop" : "Start listening";
-  $("toggle").classList.toggle("live", running);
   $("saveBtn").disabled = !running;
   $("device").disabled = running;
   $("seconds").disabled = running;
   $("refresh").disabled = running;
   const secs = status.seconds || +$("seconds").value;
   $("saveBtn").textContent = "Save the last " + (secs >= 60 ? (secs / 60) + " min" : secs + " sec");
-  $("streamInfo").textContent = running
-    ? `${status.device} · ${status.channels} ch @ ${status.samplerate} Hz` : "";
+  const info = running ? `REC · ${status.channels}CH · ${(status.samplerate/1000)}kHz` : "";
+  $("streamInfo").textContent = info;
+  $("streamInfo2").textContent = running ? `${status.device} · ${status.channels} ch @ ${status.samplerate} Hz` : "";
   if (running) {
     buildMeters(status.channels || 1);
     $("live").hidden = false;
@@ -601,51 +453,43 @@ function setRunningUI(status) {
 }
 
 function resetLive() {
-  $("liveKey").textContent = "—";
-  $("liveKeySub").textContent = "listening…";
-  $("liveBpm").textContent = "—";
-  $("liveBpmUnit").textContent = "";
-  $("liveBpmSub").textContent = "listening…";
-  $("liveCents").textContent = "—";
-  $("liveCentsUnit").textContent = "";
-  $("liveCentsSub").textContent = "listening…";
+  $("liveKey").textContent = "—"; $("liveKeySub").textContent = "listening…";
+  $("liveBpm").textContent = "—"; $("liveBpmUnit").textContent = ""; $("liveBpmSub").textContent = "listening…";
+  $("liveCents").textContent = "—"; $("liveCentsUnit").textContent = ""; $("liveCentsSub").textContent = "listening…";
   document.querySelectorAll(".liveCard").forEach(c => c.classList.remove("locked"));
 }
 
 function updateLive(analysis) {
+  const f = IR.formatLive(analysis);
   if (!analysis) return;
-  const k = analysis.key, b = analysis.bpm;
   const keyCard = $("liveKey").closest(".liveCard");
   const bpmCard = $("liveBpm").closest(".liveCard");
-  if (k && k.key && k.key !== "—") {
-    $("liveKey").textContent = k.key;
-    $("liveKeySub").textContent = "confidence " + Math.round((k.confidence || 0) * 100) + "%";
-    keyCard.classList.toggle("locked", (k.confidence || 0) >= 0.6);
-  }
-  if (b && b.bpm) {
-    $("liveBpm").textContent = b.bpm.toFixed(1);
-    $("liveBpmUnit").textContent = "BPM";
-    $("liveBpmSub").textContent = b.locked ? "locked" : "estimating…";
-    bpmCard.classList.toggle("locked", !!b.locked);
-  }
-  const t = analysis.tuning;
   const tuneCard = $("liveCents").closest(".liveCard");
-  if (t && typeof t.cents === "number") {
-    const c = Math.round(t.cents);
-    $("liveCents").textContent = (c > 0 ? "+" : c < 0 ? "−" : "") + Math.abs(c);
+  if (f.key) {
+    $("liveKey").textContent = f.key;
+    $("liveKeySub").textContent = "conf " + f.keyConf + "%";
+    keyCard.classList.toggle("locked", f.keyLocked);
+  }
+  if (f.bpm) {
+    $("liveBpm").textContent = f.bpm;
+    $("liveBpmUnit").textContent = "BPM";
+    $("liveBpmSub").textContent = f.bpmLocked ? "● LOCKED" : "estimating…";
+    bpmCard.classList.toggle("locked", f.bpmLocked);
+  }
+  if (f.centsText !== undefined) {
+    $("liveCents").textContent = f.centsText;
     $("liveCentsUnit").textContent = "¢";
-    const move = c === 0 ? "already at 440"
-                 : "pitch beat " + (c > 0 ? "−" : "+") + Math.abs(c) + "¢ to hit 440";
-    $("liveCentsSub").textContent = "≈ A " + t.hz.toFixed(1) + " Hz · " + move;
-    tuneCard.classList.toggle("locked", (t.confidence || 0) >= 0.5);
+    const move = f.cents === 0 ? "already at 440"
+                 : "beat " + (f.cents > 0 ? "−" : "+") + Math.abs(f.cents) + "¢ to hit 440";
+    $("liveCentsSub").textContent = "A " + f.centsHz.toFixed(1) + " Hz · " + move;
+    tuneCard.classList.toggle("locked", f.centsLocked);
   }
 }
 
-// Build one meter row per input channel; a single wide bar for mono.
 function buildMeters(n) {
   const box = $("meters");
   if (box.childElementCount === n) return;
-  box.classList.toggle("multi", n > 2);
+  box.classList.toggle("multi", n > 1);
   box.innerHTML = "";
   smoothPeaks = new Array(n).fill(0);
   for (let i = 0; i < n; i++) {
@@ -666,44 +510,32 @@ async function poll() {
     updateRecordUI(s);
     const target = s.seconds || 60;
     $("fill").textContent = s.filled >= target
-      ? "buffer full — last " + (target >= 60 ? target / 60 + " min" : target + " s") + " covered"
+      ? "BUFFER FULL · " + (target >= 60 ? target / 60 + ":00" : target + "s")
       : "buffering… " + s.filled + " / " + target + " s";
     if (!s.running) setRunningUI(s);
   } catch (e) { /* server briefly busy; keep polling */ }
 }
 
-const dbToPct = v => Math.max(0, Math.min(100, (20 * Math.log10(v || 1e-7) + 60) / 60 * 100));
-
 function setMeters(peaks, overall) {
-  const bars = $("meters").children;
+  const bars = [...$("meters").querySelectorAll(".chBar > div")];
   if (peaks.length && bars.length !== peaks.length) buildMeters(peaks.length);
-  for (let i = 0; i < peaks.length && i < bars.length; i++) {
-    smoothPeaks[i] = Math.max(peaks[i], (smoothPeaks[i] || 0) * 0.82);
-    const bar = bars[i].querySelector(".chBar > div");
-    if (bar) bar.style.width = dbToPct(smoothPeaks[i]) + "%";
-  }
-  const db = 20 * Math.log10((overall ?? Math.max(0, ...peaks)) || 1e-7);
-  $("meterDb").textContent = db <= -90 ? "–∞ dB" : "peak " + db.toFixed(1) + " dB";
+  IR.renderMeters([...$("meters").querySelectorAll(".chBar > div")], peaks, smoothPeaks, "width");
+  $("meterDb").textContent = "PEAK " + IR.peakDb(overall, peaks);
 }
 
 async function renderCaptures() {
   const items = await api("/api/captures");
   const box = $("captures");
-  if (!items.length) {
-    box.innerHTML = '<p class="empty">Nothing saved yet.</p>';
-    return;
-  }
+  if (!items.length) { box.innerHTML = '<p class="empty">Nothing saved yet.</p>'; return; }
   box.innerHTML = "";
   for (const c of items) {
     const div = document.createElement("div");
     div.className = "capture";
-    const when = new Date(c.mtime * 1000).toLocaleString([], {
-      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const when = new Date(c.mtime * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
     const meta = [
-      c.duration != null ? c.duration + " s" : null,
-      c.channels != null ? c.channels + " ch" : null,
-      (c.size / 1048576).toFixed(1) + " MB",
-      when,
+      c.duration != null ? c.duration + "s" : null,
+      c.channels != null ? c.channels + "CH" : null,
+      (c.size / 1048576).toFixed(1) + "MB", when,
     ].filter(Boolean).join(" · ");
     const href = "/captures/" + encodeURIComponent(c.name);
     const vhref = c.video ? "/captures/" + encodeURIComponent(c.video) : "";
@@ -720,8 +552,6 @@ async function renderCaptures() {
       </div>
       <audio controls preload="none" src="${href}"></audio>
       ${c.video ? `<video controls preload="metadata" src="${vhref}"></video>` : ""}`;
-
-    // Drag the file out to Finder / a DAW (works in Chrome-family browsers).
     div.draggable = true;
     div.addEventListener("dragstart", (e) => {
       const url = location.origin + href;
@@ -731,14 +561,8 @@ async function renderCaptures() {
       div.classList.add("dragging");
     });
     div.addEventListener("dragend", () => div.classList.remove("dragging"));
-    // Don't start a card drag from the audio/video scrubber.
-    div.querySelectorAll("audio, video").forEach(el =>
-      el.addEventListener("mousedown", (e) => e.stopPropagation()));
-
-    div.querySelector(".reveal").onclick = async () => {
-      try { await api("/api/reveal", { name: c.name }); }
-      catch (e) { toast(e.message, true); }
-    };
+    div.querySelectorAll("audio, video").forEach(el => el.addEventListener("mousedown", (e) => e.stopPropagation()));
+    div.querySelector(".reveal").onclick = async () => { try { await api("/api/reveal", { name: c.name }); } catch (e) { toast(e.message, true); } };
     div.querySelector(".del").onclick = async () => {
       if (!confirm("Delete " + c.name + "?")) return;
       await api("/api/delete", { name: c.name });
@@ -753,23 +577,17 @@ $("toggle").onclick = async () => {
     if (running) {
       setRunningUI(await api("/api/stop", {}));
     } else {
-      const status = await api("/api/start", {
-        device: +$("device").value,
-        seconds: +$("seconds").value,
-      });
-      localStorage.setItem("idea-recorder-device",
-        $("device").selectedOptions[0].textContent.replace(/ \(\d+ ch\)$/, ""));
+      const status = await api("/api/start", { device: +$("device").value, seconds: +$("seconds").value });
+      localStorage.setItem("idea-recorder-device", $("device").selectedOptions[0].textContent.replace(/ \(\d+ ch\)$/, ""));
       smoothPeaks = [];
       setRunningUI(status);
     }
   } catch (e) { toast(e.message, true); }
 };
-
 $("refresh").onclick = () => loadDevices().catch(e => toast(e.message, true));
 
 // ---- live tuner ----
 let tunerRunning = false;
-
 $("tunerDevice").onchange = fillTunerChannels;
 
 function setTunerUI(st) {
@@ -779,8 +597,7 @@ function setTunerUI(st) {
   $("tunerDevice").disabled = tunerRunning;
   $("tunerChannel").disabled = tunerRunning;
   $("tunerDisplay").hidden = !tunerRunning;
-  $("tunerInfo").textContent = tunerRunning
-    ? `${st.device} · input ${(st.channel || 0) + 1} @ ${st.samplerate} Hz` : "";
+  $("tunerInfo").textContent = tunerRunning ? `${st.device} · input ${(st.channel || 0) + 1} @ ${st.samplerate} Hz` : "";
   if (!tunerRunning) updateTuner(null);
 }
 
@@ -790,9 +607,9 @@ function updateTuner(st) {
   if (r && typeof r.cents === "number") {
     const cents = r.cents, a = Math.round(Math.abs(cents));
     let label, cls;
-    if (a <= 5) { label = "in tune"; cls = "intune"; }
-    else if (cents < 0) { label = a + "¢ flat"; cls = "flat"; }
-    else { label = a + "¢ sharp"; cls = "sharp"; }
+    if (a <= 5) { label = "IN TUNE · " + (cents >= 0 ? "+" : "−") + a + "¢"; cls = "intune"; }
+    else if (cents < 0) { label = a + "¢ FLAT"; cls = "flat"; }
+    else { label = a + "¢ SHARP"; cls = "sharp"; }
     $("tunerNote").textContent = r.note;
     $("tunerOct").textContent = r.octave;
     $("tunerCentsTxt").textContent = label;
@@ -801,12 +618,9 @@ function updateTuner(st) {
     $("tunerNeedle").style.opacity = 1;
     disp.className = "tuner lit " + cls;
   } else {
-    $("tunerNote").textContent = "—";
-    $("tunerOct").textContent = "";
-    $("tunerCentsTxt").textContent = "play a note";
-    $("tunerFreq").textContent = "";
-    $("tunerNeedle").style.left = "50%";
-    $("tunerNeedle").style.opacity = .25;
+    $("tunerNote").textContent = "—"; $("tunerOct").textContent = "";
+    $("tunerCentsTxt").textContent = "play a note"; $("tunerFreq").textContent = "";
+    $("tunerNeedle").style.left = "50%"; $("tunerNeedle").style.opacity = .25;
     disp.className = "tuner";
   }
 }
@@ -826,10 +640,8 @@ $("tunerToggle").onclick = async () => {
       setTunerUI(await api("/api/tuner/stop", {}));
     } else {
       const ch = +$("tunerChannel").value || 0;
-      const st = await api("/api/tuner/start", {
-        device: +$("tunerDevice").value, channel: ch });
-      localStorage.setItem("idea-recorder-tuner-device",
-        $("tunerDevice").selectedOptions[0].textContent.replace(/ \(\d+ ch\)$/, ""));
+      const st = await api("/api/tuner/start", { device: +$("tunerDevice").value, channel: ch });
+      localStorage.setItem("idea-recorder-tuner-device", $("tunerDevice").selectedOptions[0].textContent.replace(/ \(\d+ ch\)$/, ""));
       localStorage.setItem("idea-recorder-tuner-channel", ch);
       setTunerUI(st);
     }
@@ -837,175 +649,56 @@ $("tunerToggle").onclick = async () => {
 };
 
 // ---- camera ----
-function pickVideoMime() {
-  if (!window.MediaRecorder) return "";
-  const cands = ["video/webm;codecs=vp9", "video/webm;codecs=vp8",
-                 "video/webm", "video/mp4"];
-  for (const m of cands) {
-    try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {}
-  }
-  return "";
-}
-
 async function loadCameras() {
   const sel = $("cameraDevice");
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices
-      || !pickVideoMime()) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices || !cam.pickVideoMime()) {
     $("cameraToggle").disabled = true;
     sel.innerHTML = '<option>Camera not supported</option>';
     return;
   }
   let cams = [];
-  try {
-    cams = (await navigator.mediaDevices.enumerateDevices())
-      .filter(d => d.kind === "videoinput");
-  } catch (e) {}
+  try { cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput"); } catch (e) {}
   const remembered = localStorage.getItem("idea-recorder-camera");
   sel.innerHTML = "";
-  if (!cams.length) {
-    sel.innerHTML = '<option value="">Default camera</option>';
-    return;
-  }
+  if (!cams.length) { sel.innerHTML = '<option value="">Default camera</option>'; return; }
   cams.forEach((c, i) => {
     const opt = document.createElement("option");
-    opt.value = c.deviceId;
-    opt.textContent = c.label || ("Camera " + (i + 1));
+    opt.value = c.deviceId; opt.textContent = c.label || ("Camera " + (i + 1));
     if (remembered && c.deviceId === remembered) opt.selected = true;
     sel.appendChild(opt);
   });
 }
 
-// Record one self-contained segment, then chain into the next. Rotating the
-// recorder (rather than slicing one stream) keeps every segment valid.
-function startSegment() {
-  if (!cameraStream) return;
-  curChunks = [];
-  let rec;
-  try { rec = new MediaRecorder(cameraStream, { mimeType: videoMime, videoBitsPerSecond: 4e6 }); }
-  catch (e) { return; }
-  curRec = rec;
-  rec.ondataavailable = e => { if (e.data && e.data.size) curChunks.push(e.data); };
-  rec.onstop = () => {
-    if (curChunks.length) {
-      segments.push({ blob: new Blob(curChunks, { type: videoMime.split(";")[0] }),
-                      end: performance.now() / 1000 });
-      pruneSegments();
-    }
-    if (cameraStream && curRec === rec) startSegment();   // roll into the next
-  };
-  rec.start();
-}
-
-function pruneSegments() {
-  if (videoContinuous) return;   // keep the whole take while recording
-  const cutoff = performance.now() / 1000 - (bufferSeconds() + SEG_SECONDS * 2);
-  while (segments.length > 1 && segments[0].end < cutoff) segments.shift();
-}
-
-function rotateSegment() {
-  if (curRec && curRec.state === "recording") curRec.stop();   // onstop chains the next
-}
-
-// Finalize the in-progress segment so a save captures the freshest footage.
-function flushSegment() {
-  return new Promise(resolve => {
-    const rec = curRec;
-    if (!rec || rec.state !== "recording") return resolve();
-    const chain = rec.onstop;
-    rec.onstop = () => { chain(); resolve(); };
-    rec.stop();
-    setTimeout(resolve, 600);   // safety net
-  });
-}
-
-// The segment blobs covering the window we're about to save.
-function collectVideoSegments(continuous) {
-  let segs;
-  if (continuous) {
-    segs = segments.filter(s => s.end >= continuousStart - SEG_SECONDS);
-  } else {
-    const cutoff = performance.now() / 1000 - (bufferSeconds() + SEG_SECONDS);
-    segs = segments.filter(s => s.end >= cutoff);
-  }
-  if (!segs.length && segments.length) segs = [segments[segments.length - 1]];
-  return segs.map(s => s.blob);
-}
-
-async function loadCameras() {
-  const sel = $("cameraDevice");
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices
-      || !pickVideoMime()) {
-    $("cameraToggle").disabled = true;
-    sel.innerHTML = '<option>Camera not supported</option>';
-    return;
-  }
-  let cams = [];
-  try {
-    cams = (await navigator.mediaDevices.enumerateDevices())
-      .filter(d => d.kind === "videoinput");
-  } catch (e) {}
-  const remembered = localStorage.getItem("idea-recorder-camera");
-  sel.innerHTML = "";
-  if (!cams.length) {
-    sel.innerHTML = '<option value="">Default camera</option>';
-    return;
-  }
-  cams.forEach((c, i) => {
-    const opt = document.createElement("option");
-    opt.value = c.deviceId;
-    opt.textContent = c.label || ("Camera " + (i + 1));
-    if (remembered && c.deviceId === remembered) opt.selected = true;
-    sel.appendChild(opt);
-  });
-}
-
-// ---- audio bundled into the video: pick channels of the recording input ----
 function recordChannelCount() {
   const dev = deviceList.find(d => String(d.index) === $("device").value);
   return dev ? dev.channels : 1;
 }
-
 function selectedChannels() {
-  return [...$("channelPicker").querySelectorAll("input:checked")]
-    .map(el => +el.dataset.ch);
+  return [...$("channelPicker").querySelectorAll("input:checked")].map(el => +el.dataset.ch);
 }
-
 function buildChannelPicker() {
   const n = recordChannelCount();
   const saved = JSON.parse(localStorage.getItem("idea-recorder-bundle-chans") || "null");
   const box = $("channelPicker");
   box.innerHTML = "";
   for (let i = 0; i < n; i++) {
-    const on = saved ? saved.includes(i) : i < 2;   // default: first one/two inputs
+    const on = saved ? saved.includes(i) : i < 2;
     const lab = document.createElement("label");
     lab.className = "chanChip";
-    lab.innerHTML = `<input type="checkbox" data-ch="${i}"${on ? " checked" : ""}>`
-      + `<span>${n > 1 ? "In " + (i + 1) : "Mono"}</span>`;
+    lab.innerHTML = `<input type="checkbox" data-ch="${i}"${on ? " checked" : ""}>` +
+      `<span>${n > 1 ? "IN " + (i + 1) : "MONO"} ${on ? "✓" : ""}</span>`;
     box.appendChild(lab);
   }
-  box.onchange = () =>
+  box.onchange = () => {
     localStorage.setItem("idea-recorder-bundle-chans", JSON.stringify(selectedChannels()));
+    box.querySelectorAll(".chanChip").forEach(chip => {
+      const on = chip.querySelector("input").checked;
+      const i = +chip.querySelector("input").dataset.ch;
+      chip.querySelector("span").textContent = (n > 1 ? "IN " + (i + 1) : "MONO") + (on ? " ✓" : "");
+    });
+  };
   const dev = deviceList.find(d => String(d.index) === $("device").value);
   $("bundleDevice").textContent = dev ? dev.name : "input";
-}
-
-async function uploadVideo(audioName, blobs, channels) {
-  if (!blobs || !blobs.length) return;
-  const sizes = blobs.map(b => b.size).join(",");
-  const res = await fetch("/api/save-video", {
-    method: "POST",
-    headers: {
-      "X-Audio-Name": audioName,
-      "X-Video-Ext": videoExt(),
-      "X-Seg-Sizes": sizes,
-      "X-Audio-Channels": (channels || []).join(","),
-    },
-    body: new Blob(blobs, { type: videoMime.split(";")[0] }),
-  });
-  if (!res.ok) {
-    const d = await res.json().catch(() => ({}));
-    throw new Error(d.error || "video save failed");
-  }
 }
 
 function setCameraUI(on) {
@@ -1013,72 +706,43 @@ function setCameraUI(on) {
   $("cameraToggle").classList.toggle("live", on);
   $("cameraDevice").disabled = on;
   $("cameraWrap").hidden = !on;
-  $("cameraInfo").textContent = on ? ("Recording " + videoExt().toUpperCase()) : "";
+  $("cameraInfo").textContent = on ? ("Recording " + cam.videoExt().toUpperCase()) : "";
 }
 
 async function enableCamera() {
-  const mime = pickVideoMime();
-  if (!mime) { toast("This browser can't record video.", true); return; }
+  if (!cam.pickVideoMime()) { toast("This browser can't record video.", true); return; }
   const id = $("cameraDevice").value;
-  const video = { width: { ideal: 1280 }, height: { ideal: 720 } };
-  if (id) video.deviceId = { exact: id };
-  let stream;
+  // Claim the camera for this settings window; the strip releases it on seeing
+  // this, so only one window captures at a time.
+  localStorage.setItem("ir-cam-owner", "settings");
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
+    await cam.enable(id);
   } catch (e) {
+    localStorage.setItem("ir-cam-owner", "strip");
     toast("Camera unavailable — access may be blocked.", true);
     return;
   }
-  cameraStream = stream;
-  videoMime = mime;
-  segments = [];
-  curChunks = [];
-  videoContinuous = false;
-  $("cameraPreview").srcObject = stream;
   buildChannelPicker();
-  startSegment();
-  segTimer = setInterval(rotateSegment, SEG_SECONDS * 1000);
-  stream.getVideoTracks()[0].addEventListener("ended", disableCamera);
   setCameraUI(true);
-  await loadCameras();         // labels are available now that access is granted
+  await loadCameras();   // labels available now that access is granted
   if (id) { $("cameraDevice").value = id; localStorage.setItem("idea-recorder-camera", id); }
 }
 
-function disableCamera() {
-  if (segTimer) { clearInterval(segTimer); segTimer = null; }
-  const rec = curRec;
-  curRec = null;               // null first so onstop won't chain a new segment
-  if (rec && rec.state !== "inactive") { try { rec.stop(); } catch (e) {} }
-  if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
-  cameraStream = null;
-  segments = [];
-  curChunks = [];
-  videoContinuous = false;
-  $("cameraPreview").srcObject = null;
-  $("cameraWrap").classList.remove("continuous");
-  setCameraUI(false);
-}
-
-$("cameraToggle").onclick = () => { cameraActive() ? disableCamera() : enableCamera(); };
-$("cameraDevice").onchange = () =>
-  localStorage.setItem("idea-recorder-camera", $("cameraDevice").value);
-// Channel list follows the recording input device.
+$("cameraToggle").onclick = () => { cameraActive() ? cam.disable() : enableCamera(); };
+$("cameraDevice").onchange = () => localStorage.setItem("idea-recorder-camera", $("cameraDevice").value);
 $("device").addEventListener("change", () => { if (cameraActive()) buildChannelPicker(); });
 
 function updateCameraBuf() {
   if (!cameraActive()) return;
-  const span = segments.length
-    ? performance.now() / 1000 - segments[0].end + SEG_SECONDS : 0;
-  $("cameraBuf").innerHTML = (videoContinuous
-    ? '<span class="camRecDot"></span> recording ' + fmtClock(performance.now() / 1000 - continuousStart)
-    : "buffer " + Math.min(Math.round(span), bufferSeconds()) + "s");
+  $("cameraBuf").innerHTML = cam.isContinuous()
+    ? '<span class="camRecDot"></span> recording ' + fmtClock(cam.continuousElapsed())
+    : "BUFFER " + cam.bufferSpan() + "S";
 }
 
 $("openFolder").onclick = () => api("/api/reveal", {}).catch(e => toast(e.message, true));
-
 $("changeFolder").onclick = async () => {
   try {
-    const r = await api("/api/set-folder", {});   // empty body → native picker
+    const r = await api("/api/set-folder", {});
     if (r.cancelled) return;
     $("savePathDir").textContent = r.captures_dir;
     toast("Saving to " + r.captures_dir);
@@ -1090,21 +754,16 @@ $("recordBtn").onclick = async () => {
     if (recording) {
       const r = await api("/api/record/stop", {});
       if (cameraActive()) {
-        await flushSegment();
-        videoContinuous = false;
-        $("cameraWrap").classList.remove("continuous");
-        try { await uploadVideo(r.saved, collectVideoSegments(true), selectedChannels()); }
+        await cam.flush();
+        cam.stopContinuous();
+        try { await cam.uploadVideo(r.saved, cam.collectSegments(true), selectedChannels()); }
         catch (e) { toast("Recorded; video failed: " + e.message, true); }
       }
       toast("Recorded " + r.duration + "s → " + r.saved);
       renderCaptures();
     } else {
       await api("/api/record/start", {});
-      if (cameraActive()) {
-        continuousStart = performance.now() / 1000;   // video take starts now
-        videoContinuous = true;
-        $("cameraWrap").classList.add("continuous");
-      }
+      if (cameraActive()) cam.startContinuous();
     }
   } catch (e) { toast(e.message, true); }
 };
@@ -1117,32 +776,21 @@ async function loadInfo() {
   } catch (e) { /* non-critical */ }
 }
 
-function fmtClock(s) {
-  s = Math.floor(s);
-  return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
-}
-
 function updateRecordUI(status) {
   recording = !!status.recording;
   const btn = $("recordBtn");
   btn.disabled = !running;
   btn.classList.toggle("recording", recording);
-  $("recordLabel").textContent = recording
-    ? "Stop recording · " + fmtClock(status.record_seconds || 0)
-    : "Record continuously";
+  $("recordLabel").textContent = recording ? "Stop · " + fmtClock(status.record_seconds || 0) : "Record";
 }
 
 $("saveBtn").onclick = async () => {
   try {
     const r = await api("/api/save", {});
     if (cameraActive()) {
-      await flushSegment();
-      try { await uploadVideo(r.saved, collectVideoSegments(false), selectedChannels()); }
-      catch (e) {
-        toast("Audio saved; video failed: " + e.message, true);
-        renderCaptures();
-        return;
-      }
+      await cam.flush();
+      try { await cam.uploadVideo(r.saved, cam.collectSegments(false), selectedChannels()); }
+      catch (e) { toast("Audio saved; video failed: " + e.message, true); renderCaptures(); return; }
     }
     toast("Saved " + r.duration + "s → " + r.saved);
     renderCaptures();
@@ -1151,8 +799,7 @@ $("saveBtn").onclick = async () => {
 
 // Space bar = save, when not focused on a control
 document.addEventListener("keydown", e => {
-  if (e.code === "Space" && running &&
-      !["SELECT", "BUTTON", "AUDIO", "INPUT"].includes(document.activeElement.tagName)) {
+  if (e.code === "Space" && running && !["SELECT", "BUTTON", "AUDIO", "INPUT"].includes(document.activeElement.tagName)) {
     e.preventDefault();
     $("saveBtn").click();
   }
@@ -1160,165 +807,129 @@ document.addEventListener("keydown", e => {
 
 // ---- drag-and-drop file key/tempo analyzer ----
 const dropZone = $("dropZone"), fileInput = $("fileInput");
-const DROP_PROMPT = 'Drop an audio file here<span>or click to choose · WAV, AIFF, FLAC, MP3, M4A, AAC, OGG</span>';
+const DROP_PROMPT = 'Drop an audio file to analyze<span>WAV · AIFF · FLAC · MP3 · M4A · AAC · OGG — or a saved capture</span>';
 
-dropZone.addEventListener("click", () => {
-  if (!dropZone.classList.contains("busy")) fileInput.click();
-});
-fileInput.addEventListener("change", () => {
-  if (fileInput.files[0]) analyzeFile(fileInput.files[0]);
-  fileInput.value = "";
-});
-["dragenter", "dragover"].forEach(ev =>
-  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add("over"); }));
-["dragleave", "drop"].forEach(ev =>
-  dropZone.addEventListener(ev, () => dropZone.classList.remove("over")));
-dropZone.addEventListener("drop", e => {
-  e.preventDefault();
-  const f = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (f) analyzeFile(f);
-});
+dropZone.addEventListener("click", () => { if (!dropZone.classList.contains("busy") && $("dropResult").hidden) fileInput.click(); });
+fileInput.addEventListener("change", () => { if (fileInput.files[0]) analyzeFile(fileInput.files[0]); fileInput.value = ""; });
+["dragenter", "dragover"].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => dropZone.addEventListener(ev, () => dropZone.classList.remove("over")));
+dropZone.addEventListener("drop", e => { e.preventDefault(); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) analyzeFile(f); });
 $("dropAnother").addEventListener("click", e => {
   e.stopPropagation();
-  $("dropResult").hidden = true;
-  $("dropInner").hidden = false;
+  $("dropResult").hidden = true; $("dropInner").hidden = false;
   $("dropInner").querySelector(".dropText").innerHTML = DROP_PROMPT;
 });
 
 async function analyzeFile(file) {
   dropZone.classList.add("busy");
-  $("dropResult").hidden = true;
-  $("dropInner").hidden = false;
-  $("dropInner").querySelector(".dropText").innerHTML =
-    "Analyzing <strong>" + file.name + "</strong>…<span>reading key &amp; tempo</span>";
+  $("dropResult").hidden = true; $("dropInner").hidden = false;
+  $("dropInner").querySelector(".dropText").innerHTML = "Analyzing <strong>" + file.name + "</strong>…<span>reading key &amp; tempo</span>";
   try {
-    const res = await fetch("/api/analyze-file", {
-      method: "POST",
-      headers: { "X-Filename": encodeURIComponent(file.name) },
-      body: file,
-    });
+    const res = await fetch("/api/analyze-file", { method: "POST", headers: { "X-Filename": encodeURIComponent(file.name) }, body: file });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Could not analyze file");
     showFileResult(file.name, data);
   } catch (e) {
     toast(e.message, true);
     $("dropInner").querySelector(".dropText").innerHTML = DROP_PROMPT;
-  } finally {
-    dropZone.classList.remove("busy");
-  }
+  } finally { dropZone.classList.remove("busy"); }
 }
 
 function showFileResult(name, data) {
-  $("dropInner").hidden = true;
-  $("dropResult").hidden = false;
+  $("dropInner").hidden = true; $("dropResult").hidden = false;
   $("dropFile").textContent = name + (data.duration ? " · " + data.duration + "s" : "");
-  const k = data.key, b = data.bpm;
-  $("fKey").textContent = (k && k.key && k.key !== "—") ? k.key : "—";
-  $("fBpm").innerHTML = (b && b.bpm) ? b.bpm.toFixed(1) + "<small>BPM</small>" : "—";
-  const t = data.tuning;
-  if (t && typeof t.cents === "number") {
-    const c = Math.round(t.cents);
-    const sign = c > 0 ? "+" : c < 0 ? "−" : "";
-    $("fCents").innerHTML = sign + Math.abs(c) + "<small>¢ · A " + t.hz.toFixed(1) + "</small>";
-  } else {
-    $("fCents").textContent = "—";
-  }
+  const f = IR.formatLive(data);
+  $("fKey").textContent = f.key || "—";
+  $("fBpm").innerHTML = f.bpm ? f.bpm + "<small>BPM</small>" : "—";
+  if (f.centsText !== undefined) {
+    $("fCents").innerHTML = f.centsText + "<small>¢ · A " + f.centsHz.toFixed(1) + "</small>";
+  } else { $("fCents").textContent = "—"; }
   renderKeyMap(data.key_map);
   renderTempoMap(data.tempo_map);
   $("dropInner").querySelector(".dropText").innerHTML = DROP_PROMPT;
 }
 
-const PC_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-function keyColor(name) {
-  const [tonic, mode] = (name || "").split(" ");
-  const h = Math.max(0, PC_NAMES.indexOf(tonic)) * 30;
-  return mode === "minor" ? `hsl(${h} 42% 46%)` : `hsl(${h} 68% 52%)`;
-}
-
 function renderKeyMap(km) {
   const box = $("keyMap");
-  if (!km || !km.segments || !km.segments.length || !km.duration) {
-    box.hidden = true;
-    return;
-  }
+  if (!km || !km.segments || !km.segments.length || !km.duration) { box.hidden = true; return; }
   box.hidden = false;
   const dur = km.duration;
-
-  // proportional colored timeline
   $("kmBar").innerHTML = km.segments.map(s => {
     const pct = Math.max(0, (s.end - s.start) / dur * 100);
-    const label = pct > 9 ? s.key : "";   // only label segments wide enough to read
-    return `<div class="kmSeg" style="width:${pct}%;background:${keyColor(s.key)}"
-                 title="${s.key} · ${fmtClock(s.start)}–${fmtClock(s.end)}">${label}</div>`;
+    const label = pct > 9 ? s.key : "";
+    return `<div class="kmSeg" style="width:${pct}%;background:${IR.keyColor(s.key)}" title="${s.key} · ${fmtClock(s.start)}–${fmtClock(s.end)}">${label}</div>`;
   }).join("");
-
-  // list: overall, then each change point
   const rows = [];
   if (!km.changes.length) {
-    rows.push(`<div class="kmRow kmNone">No clear key changes —
-               <span class="kmKey" style="color:${keyColor(km.overall)}">&nbsp;${km.overall}</span>
-               &nbsp;throughout.</div>`);
+    rows.push(`<div class="kmRow kmNone">No clear key changes — <span class="kmKey" style="color:${IR.keyColor(km.overall)}">&nbsp;${km.overall}</span>&nbsp;throughout.</div>`);
   } else {
-    rows.push(`<div class="kmRow"><span class="kmDot" style="background:${keyColor(km.segments[0].key)}"></span>
-               <span class="kmTime">${fmtClock(0)}</span>
-               <span class="kmKey">${km.segments[0].key}</span></div>`);
+    rows.push(`<div class="kmRow"><span class="kmDot" style="background:${IR.keyColor(km.segments[0].key)}"></span><span class="kmTime">${fmtClock(0)}</span><span class="kmKey">${km.segments[0].key}</span></div>`);
     for (const s of km.segments.slice(1)) {
-      rows.push(`<div class="kmRow"><span class="kmDot" style="background:${keyColor(s.key)}"></span>
-                 <span class="kmTime">${fmtClock(s.start)}</span>
-                 <span class="kmKey">${s.key}</span>
-                 <span class="kmTime" style="min-width:0">change</span></div>`);
+      rows.push(`<div class="kmRow"><span class="kmDot" style="background:${IR.keyColor(s.key)}"></span><span class="kmTime">${fmtClock(s.start)}</span><span class="kmKey">${s.key}</span></div>`);
     }
   }
   $("kmList").innerHTML = rows.join("");
 }
 
 function tempoColor(bpm) {
-  // slow → blue, fast → red, across the usual 70–185 BPM range
   const f = Math.max(0, Math.min(1, (bpm - 70) / (185 - 70)));
   return `hsl(${Math.round(210 - f * 210)} 62% 50%)`;
 }
 
 function renderTempoMap(tm) {
   const box = $("tempoMap");
-  if (!tm || !tm.segments || !tm.segments.length || !tm.duration) {
-    box.hidden = true;
-    return;
-  }
+  if (!tm || !tm.segments || !tm.segments.length || !tm.duration) { box.hidden = true; return; }
   box.hidden = false;
   const dur = tm.duration;
-
   $("tmBar").innerHTML = tm.segments.map(s => {
     const pct = Math.max(0, (s.end - s.start) / dur * 100);
     const label = pct > 9 ? s.bpm.toFixed(0) : "";
-    return `<div class="kmSeg" style="width:${pct}%;background:${tempoColor(s.bpm)}"
-                 title="${s.bpm.toFixed(1)} BPM · ${fmtClock(s.start)}–${fmtClock(s.end)}">${label}</div>`;
+    return `<div class="kmSeg" style="width:${pct}%;background:${tempoColor(s.bpm)}" title="${s.bpm.toFixed(1)} BPM · ${fmtClock(s.start)}–${fmtClock(s.end)}">${label}</div>`;
   }).join("");
-
   const rows = [];
   if (!tm.changes.length) {
-    rows.push(`<div class="kmRow kmNone">No tempo changes —
-               <span class="kmKey" style="color:${tempoColor(tm.overall)}">&nbsp;${tm.overall.toFixed(1)} BPM</span>
-               &nbsp;throughout.</div>`);
+    rows.push(`<div class="kmRow kmNone">No tempo changes — <span class="kmKey" style="color:${tempoColor(tm.overall)}">&nbsp;${tm.overall.toFixed(1)} BPM</span>&nbsp;throughout.</div>`);
   } else {
-    rows.push(`<div class="kmRow"><span class="kmDot" style="background:${tempoColor(tm.segments[0].bpm)}"></span>
-               <span class="kmTime">${fmtClock(0)}</span>
-               <span class="kmKey">${tm.segments[0].bpm.toFixed(1)} BPM</span></div>`);
+    rows.push(`<div class="kmRow"><span class="kmDot" style="background:${tempoColor(tm.segments[0].bpm)}"></span><span class="kmTime">${fmtClock(0)}</span><span class="kmKey">${tm.segments[0].bpm.toFixed(1)} BPM</span></div>`);
     for (const s of tm.segments.slice(1)) {
-      rows.push(`<div class="kmRow"><span class="kmDot" style="background:${tempoColor(s.bpm)}"></span>
-                 <span class="kmTime">${fmtClock(s.start)}</span>
-                 <span class="kmKey">${s.bpm.toFixed(1)} BPM</span>
-                 <span class="kmTime" style="min-width:0">change</span></div>`);
+      rows.push(`<div class="kmRow"><span class="kmDot" style="background:${tempoColor(s.bpm)}"></span><span class="kmTime">${fmtClock(s.start)}</span><span class="kmKey">${s.bpm.toFixed(1)} BPM</span></div>`);
     }
   }
   $("tmList").innerHTML = rows.join("");
 }
 
+// When opened as the strip's settings window: show an in-page Close button
+// (the native title bar can sit under the always-on-top strip), and make sure
+// the strip reclaims the camera if this window is closed while it holds it.
+const fromStrip = new URLSearchParams(location.search).get("panel") === "strip";
+if (fromStrip) {
+  $("closePanel").hidden = false;
+  $("closePanel").onclick = () => {
+    if (cameraActive()) cam.disable();   // hand the camera back to the strip
+    const a = window.pywebview && window.pywebview.api;
+    if (a && a.close_dashboard) a.close_dashboard(); else window.close();
+  };
+}
+window.addEventListener("pagehide", () => {
+  if (cameraActive()) localStorage.setItem("ir-cam-owner", "strip");
+});
+
+// Show/hide the whole strip window via the bridge. The localStorage flag also
+// drives the strip's CSS overlay as a fallback when there's no native window
+// (e.g. viewing /strip in a browser). Default to visible each time settings open.
+$("overlayToggle").checked = true;
+$("overlayToggle").onchange = () => {
+  const visible = $("overlayToggle").checked;
+  localStorage.setItem("ir-strip-overlay", visible ? "on" : "off");
+  const a = window.pywebview && window.pywebview.api;
+  if (a && a.set_strip_visible) a.set_strip_visible(visible);
+};
+
 (async () => {
   await loadDevices();
   await loadCameras();
   await loadInfo();
-  const s = await api("/api/status");
-  setRunningUI(s);
+  setRunningUI(await api("/api/status"));
   setTunerUI(await api("/api/tuner/status"));
   renderCaptures();
   setInterval(poll, 150);

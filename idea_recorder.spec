@@ -5,13 +5,20 @@ import os
 from PyInstaller.utils.hooks import collect_all
 
 # Pull in the compiled audio libraries (PortAudio via sounddevice,
-# libsndfile via soundfile) and their data files / hidden imports.
+# libsndfile via soundfile), the pywebview backend, and their data files /
+# hidden imports.
 datas, binaries, hiddenimports = [], [], []
-for pkg in ("sounddevice", "soundfile"):
+for pkg in ("sounddevice", "soundfile", "webview"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
     hiddenimports += h
+
+# pywebview's macOS backend loads these dynamically.
+hiddenimports += [
+    "webview.platforms.cocoa", "objc", "Foundation", "AppKit", "WebKit",
+    "Quartz", "Security", "PyObjCTools", "PyObjCTools.AppHelper",
+]
 
 # The web UI's static files ship inside the bundle.
 datas += [("static", "static")]
@@ -22,7 +29,9 @@ if os.path.exists("vendor/ffmpeg"):
     binaries += [("vendor/ffmpeg", ".")]
 
 a = Analysis(
-    ["app.py"],
+    # desktop.py is the entry: it boots the local server and opens the native
+    # always-on-top strip. It imports app.py, so the dashboard ships too.
+    ["desktop.py"],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -65,14 +74,19 @@ app = BUNDLE(
     info_plist={
         "CFBundleName": "Idea Recorder",
         "CFBundleDisplayName": "Idea Recorder",
-        "CFBundleShortVersionString": "1.4.2",
-        "CFBundleVersion": "1.4.2",
+        "CFBundleShortVersionString": "1.5.0",
+        "CFBundleVersion": "1.5.0",
         # Built on Apple Silicon → arm64 app; on Intel → x86_64. Both run on
         # macOS 11+; arm64 binaries are required (not just preferred) on M-series.
         "LSMinimumSystemVersion": "11.0",
         "NSMicrophoneUsageDescription":
             "Idea Recorder listens to your audio interface to keep a rolling "
             "backup of anything you play.",
+        # Required: without it macOS aborts the app the instant the strip's
+        # camera buffer touches the webcam (getUserMedia inside WKWebView).
+        "NSCameraUsageDescription":
+            "Idea Recorder rolls a companion video buffer alongside your audio "
+            "so a matching video can be saved with each capture.",
         "NSHighResolutionCapable": True,
         # Shows in the Dock with a menu bar so it can be quit with Cmd-Q.
         "LSUIElement": False,

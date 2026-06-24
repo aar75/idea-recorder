@@ -44,9 +44,10 @@ filling your drive.
   `idea_2026-06-13_14-22-05_Cs_min_122bpm.wav`). The buffer is recorded as short
   self-contained segments and stitched together server-side with ffmpeg, so the
   saved clip is correctly timed rather than a stray one-second fragment. Capture
-  happens in the browser, so the camera permission prompt comes from your browser
-  — the app itself never touches the camera. Each capture card plays and
-  downloads the paired video, and deleting the audio removes its companion too.
+  happens client-side (in the browser, or in the standalone strip's native
+  WKWebView), so the camera permission prompt comes from there. Each capture card
+  plays and downloads the paired video, and deleting the audio removes its
+  companion too.
 - **Pick which channels go into the video** — a per-input channel selector under
   the camera lets you choose which channels of your recording interface are mixed
   (down to stereo) into the video's audio track via ffmpeg, through a look-ahead
@@ -63,6 +64,29 @@ filling your drive.
 Saved files are standard 24-bit WAVs. A multichannel capture is one WAV with
 all inputs preserved as separate channels (drag it into the DAW and split to
 mono tracks).
+
+## Standalone always-on-top strip (no browser)
+
+Beyond the browser dashboard, there's a native **always-on-top capture strip**
+you can park at the top of your screen as a glanceable dashboard — the webcam
+spans the strip with floating glass controls over it: a buffer readout, a live
+audio meter, KEY / TEMPO / ±440 readouts, a buffer-length picker, and **REC** +
+**Save** buttons (Spacebar saves). A compact **floating widget** is available
+too. Both auto-start listening and the camera on launch; the **⚙ / green dot**
+opens the full dashboard for detailed settings, captures, the tuner, and the
+file analyzer.
+
+It's a native window (macOS WKWebView via pywebview — *not* a browser tab) that
+reuses the same server, so metering, key/tempo, the camera buffer, and saving
+behave exactly like the dashboard. Run it from source with:
+
+```sh
+.venv/bin/python desktop.py            # the strip (default)
+.venv/bin/python desktop.py --widget   # the floating widget
+.venv/bin/python desktop.py --dashboard
+```
+
+The packaged `.app` launches the strip by default.
 
 ## Easiest: double-click to launch
 

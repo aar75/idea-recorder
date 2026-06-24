@@ -378,7 +378,18 @@ const $ = IR.$;
 const api = IR.api, toast = IR.toast, fmtClock = IR.fmtClock;
 let running = false, recording = false, smoothPeaks = [];
 
+const BUF_OPTS = [30, 60, 120, 300];
 const bufferSeconds = () => +($("seconds").value) || 60;
+
+// Reflect a buffer length (seconds) in the dropdown + save label. Shared by the
+// load path, the strip's storage events, and live backend status so the strip
+// and this settings window always show the same buffer.
+function setBufferSelect(secs) {
+  secs = +secs;
+  if (!BUF_OPTS.includes(secs)) return;
+  $("seconds").value = String(secs);
+  $("saveBtn").textContent = "Save the last " + (secs >= 60 ? (secs / 60) + " min" : secs + " sec");
+}
 
 // camera buffer engine (shared core)
 const cam = IR.createCamera({
@@ -436,6 +447,7 @@ function setRunningUI(status) {
   $("refresh").disabled = running;
   const secs = status.seconds || +$("seconds").value;
   $("saveBtn").textContent = "Save the last " + (secs >= 60 ? (secs / 60) + " min" : secs + " sec");
+  if (running && BUF_OPTS.includes(secs)) $("seconds").value = String(secs);   // follow the backend (e.g. strip changed it)
   const info = running ? `REC · ${status.channels}CH · ${(status.samplerate/1000)}kHz` : "";
   $("streamInfo").textContent = info;
   $("streamInfo2").textContent = running ? `${status.device} · ${status.channels} ch @ ${status.samplerate} Hz` : "";
@@ -579,6 +591,7 @@ $("toggle").onclick = async () => {
     } else {
       const status = await api("/api/start", { device: +$("device").value, seconds: +$("seconds").value });
       localStorage.setItem("idea-recorder-device", $("device").selectedOptions[0].textContent.replace(/ \(\d+ ch\)$/, ""));
+      localStorage.setItem("idea-recorder-buffer", $("seconds").value);
       smoothPeaks = [];
       setRunningUI(status);
     }
@@ -925,7 +938,20 @@ $("overlayToggle").onchange = () => {
   if (a && a.set_strip_visible) a.set_strip_visible(visible);
 };
 
+// Buffer length is shared with the strip via localStorage. Persist this window's
+// choice (it's disabled while listening, so this fires while stopped); the value
+// is applied when listening starts. The strip restarts its capture on this key.
+$("seconds").onchange = () => {
+  localStorage.setItem("idea-recorder-buffer", $("seconds").value);
+  setBufferSelect($("seconds").value);
+};
+window.addEventListener("storage", (e) => {
+  if (e.key === "idea-recorder-buffer") setBufferSelect(localStorage.getItem("idea-recorder-buffer"));
+});
+
 (async () => {
+  const savedBuf = +localStorage.getItem("idea-recorder-buffer");
+  if (BUF_OPTS.includes(savedBuf)) setBufferSelect(savedBuf);
   await loadDevices();
   await loadCameras();
   await loadInfo();

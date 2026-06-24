@@ -8,160 +8,288 @@
 <style>
   html, body { height: 100%; }
   body {
-    margin: 0; overflow: hidden; font-family: var(--font-body);
-    background: #15182a; color: #fff; user-select: none;
+    margin: 0; overflow: hidden; font-family: var(--font-mono);
+    background: #06080c; color: #fff; user-select: none;
   }
-  /* --uiscale grows the controls as the strip is expanded to show more camera */
   [hidden] { display: none !important; }   /* beats the display:flex rules below */
+
   /* "hide overlay" setting → clean camera feed (app keeps running) */
   #strip.overlay-off #topstack,
-  #strip.overlay-off #vmeters,
+  #strip.overlay-off #botband,
+  #strip.overlay-off #hudchrome,
   #strip.overlay-off #buffline { display: none !important; }
-  #strip { position: relative; width: 100%; height: 100vh; min-height: 96px; overflow: hidden; --uiscale: 1; }
-  #strip.size-1 { --uiscale: 1.18; }
-  #strip.size-2 { --uiscale: 1.36; }
-  #strip.size-3 { --uiscale: 1.5; }
+
+  /* --uiscale grows the chrome as the strip is expanded; --rs grows the big
+     readouts/tuner note more aggressively (more camera ⇒ bigger HUD). */
+  #strip { position: relative; width: 100%; height: 100vh; min-height: 96px; overflow: hidden;
+    --uiscale: 1; --rs: 1; }
+  #strip.size-1 { --uiscale: 1.18; --rs: 1.5; }
+  #strip.size-2 { --uiscale: 1.36; --rs: 2.1; }
+  #strip.size-3 { --uiscale: 1.5;  --rs: 2.6; }
+
+  /* ---- ADAPTIVE palette (default): status colour — green lock / amber / red clip ---- */
+  #strip {
+    --hot:    #eef6f8;                        /* primary text */
+    --accent: #9fc3cc;
+    --dim:    rgba(180,205,212,.62);
+    --hud-line: rgba(150,190,200,.30);
+    --panel:  rgba(8,16,20,.44);
+    --glow:   rgba(120,180,150,.4);
+    --keyC:   #3ee07f;
+    --tempoC: #ffb02e;
+    --tuneC:  #9fc3cc;
+    --grad:   linear-gradient(0deg,#2fcf6b,#2fcf6b 56%,#ffb02e 80%,#ff3b30);
+    --clip:   #ff3b30;
+    --buf:    #ff3b30;
+    --save:   #ff3b30;
+    --saveInk:#fff;
+  }
+  /* ---- ICE palette: monochrome cyan targeting HUD ---- */
+  #strip.theme-ice {
+    --hot:    #eafdff;
+    --accent: #7fe6ff;
+    --dim:    rgba(180,232,246,.62);
+    --hud-line: rgba(127,230,255,.30);
+    --panel:  rgba(6,16,22,.42);
+    --glow:   rgba(90,212,255,.5);
+    --keyC:   #9bf0ff;
+    --tempoC: #9bf0ff;
+    --tuneC:  #7fe6ff;
+    --grad:   linear-gradient(0deg,#36d6ff,#36d6ff 54%,#bff4ff 80%,#ff5a52);
+    --clip:   #ff5a52;
+    --buf:    #ff4d45;
+    --save:   #7fe6ff;
+    --saveInk:#04222b;
+  }
+
+  @keyframes hudSweep { 0% { transform: translateY(-140%); } 100% { transform: translateY(1100%); } }
+  @keyframes hudPulse { 0%, 100% { opacity: 1; } 50% { opacity: .22; } }
 
   /* webcam fills the strip */
   #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-    transform: scaleX(-1); background: #15182a; }
+    transform: scaleX(-1); background: #06080c; }
   #bg { position: absolute; inset: 0; background:
-    linear-gradient(100deg, #171a28, #2a2f47 35%, #3c4262 58%, #262b42 80%, #15182a); }
-  #vignette { position: absolute; inset: 0; pointer-events: none; background:
-    linear-gradient(90deg, rgba(10,12,22,.55), transparent 18%, transparent 70%, rgba(10,12,22,.5)); }
-  #grain { position: absolute; inset: 0; pointer-events: none;
-    background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px); }
+    radial-gradient(120% 95% at 50% 128%, rgba(48,60,70,.85), rgba(12,17,24,.96) 58%, #05070c),
+    linear-gradient(158deg, #0a0f17, #0d141d 42%, #111a23 70%, #070a10); }
+  #bg::after { content: ""; position: absolute; inset: 0; background:
+    radial-gradient(38% 64% at 63% 80%, rgba(255,150,72,.10), transparent 70%),
+    radial-gradient(34% 56% at 28% 72%, rgba(64,128,190,.12), transparent 72%); }
 
-  /* tuner + controls stack, overlaid at the TOP of the video */
-  #topstack { position: absolute; top: 0; left: 0; right: 0; z-index: 4; }
+  /* decorative HUD chrome — hidden on the clean ("overlay off") feed */
+  #hudchrome { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+  #grain { position: absolute; inset: 0; opacity: .5; background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.022) 0 1px, transparent 1px 3px); }
+  #sweep { position: absolute; left: 0; right: 0; top: 0; height: 16%;
+    background: linear-gradient(180deg, transparent, rgba(150,225,255,.05), transparent);
+    animation: hudSweep 7.5s linear infinite; }
+  #vignette { position: absolute; inset: 0; background:
+    radial-gradient(135% 115% at 50% 50%, transparent 52%, rgba(0,0,0,.6)); }
+  .corner { position: absolute; width: calc(15px * var(--uiscale)); height: calc(15px * var(--uiscale)); }
+  .corner.tl { top: calc(7px*var(--uiscale)); left: calc(7px*var(--uiscale)); border-top: 1px solid var(--hud-line); border-left: 1px solid var(--hud-line); }
+  .corner.tr { top: calc(7px*var(--uiscale)); right: calc(7px*var(--uiscale)); border-top: 1px solid var(--hud-line); border-right: 1px solid var(--hud-line); }
+  .corner.bl { bottom: calc(7px*var(--uiscale)); left: calc(7px*var(--uiscale)); border-bottom: 1px solid var(--hud-line); border-left: 1px solid var(--hud-line); }
+  .corner.brr{ bottom: calc(7px*var(--uiscale)); right: calc(7px*var(--uiscale)); border-bottom: 1px solid var(--hud-line); border-right: 1px solid var(--hud-line); }
 
-  /* ---- tuner overlay across the TOP (translucent) ---- */
-  #tuneBar { height: calc(24px * var(--uiscale));
-    display: flex; align-items: center; gap: calc(12px * var(--uiscale)); padding: 0 calc(14px * var(--uiscale));
-    background: rgba(16,18,26,.34); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-    border-bottom: 1px solid rgba(255,255,255,.08); }
-  #tuneBar .tNote { font-family: var(--font-mono); font-size: calc(11px * var(--uiscale)); font-weight: 700;
-    color: #fff; min-width: calc(92px * var(--uiscale)); text-shadow: 0 1px 3px rgba(0,0,0,.6); }
-  #tuneBar .tNote .oct { color: rgba(255,255,255,.6); }
-  #tuneBar .tNote .ct { margin-left: 6px; color: rgba(255,255,255,.65); }
-  .tScale { position: relative; flex: 1; height: calc(12px * var(--uiscale)); }
-  .tZone { position: absolute; top: 0; bottom: 0; left: 45%; width: 10%; background: rgba(47,207,107,.22); border-radius: 2px; }
-  .tCenter { position: absolute; left: 50%; top: -1px; bottom: -1px; width: 1px; background: rgba(255,255,255,.5); transform: translateX(-50%); }
-  /* slower, eased motion so the needle reads calmly (was .09s linear) */
-  .tNeedle { position: absolute; top: -2px; bottom: -2px; left: 50%; width: 2px; background: #fff;
-    transform: translateX(-50%); opacity: .35; transition: left .28s cubic-bezier(.33,0,.2,1), background .2s, opacity .2s; }
-  #tuneBar.intune .tNeedle { background: var(--green); opacity: 1; }
-  #tuneBar.off .tNeedle { background: var(--red); opacity: 1; }
+  /* ===== TOP BAND ===== */
+  #topstack { position: absolute; top: 0; left: 0; right: 0; z-index: 5; }
 
-  /* bottom buffer-fill line */
-  #buffline { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.14); z-index: 3; }
-  #bufFill { width: 0%; height: 100%; background: var(--red); transition: width .3s linear; }
+  /* ---- tuner tape across the top ---- */
+  #tuneBar { display: flex; align-items: center; gap: calc(9px * var(--uiscale));
+    padding: calc(6px * var(--uiscale)) calc(13px * var(--uiscale));
+    background: linear-gradient(to bottom, rgba(6,12,18,.58), rgba(6,12,18,.06));
+    border-bottom: 1px solid var(--hud-line); }
+  #tuneBar { --noteC: var(--tuneC); }
+  #tuneBar.intune { --noteC: var(--green); }
+  #tuneBar.off    { --noteC: var(--red); }
+  #tuneBar .tlabel { font-size: calc(7.5px * var(--uiscale)); font-weight: 700; letter-spacing: .16em; color: var(--dim); }
+  #tuneBar .tspec  { font-size: calc(7px * var(--uiscale)); letter-spacing: .1em; color: var(--dim); }
+  .tScale { position: relative; flex: 1; height: calc(10px * var(--rs));
+    background: repeating-linear-gradient(90deg, var(--hud-line) 0 1px, transparent 1px calc(100%/24)); }
+  .tZone { position: absolute; left: 45%; right: 45%; top: 0; bottom: 0; background: rgba(120,200,160,.14); }
+  .tCenter { position: absolute; left: 50%; top: -1px; bottom: -1px; width: 1px; background: var(--hud-line); transform: translateX(-50%); }
+  /* eased motion so the needle reads calmly */
+  .tNeedle { position: absolute; top: calc(-4px * var(--rs)); bottom: calc(-4px * var(--rs)); left: 50%;
+    width: calc(2px * var(--rs)); background: var(--noteC); box-shadow: 0 0 calc(9px * var(--rs)) var(--noteC);
+    transform: translateX(-50%); transition: left .28s cubic-bezier(.33,0,.2,1), background .2s, box-shadow .2s; }
 
-  /* controls — a translucent bar overlaid at the top (below the tuner); video fills below */
-  #controls { display: flex; align-items: center;
-    gap: calc(8px * var(--uiscale)); padding: calc(7px * var(--uiscale)) calc(12px * var(--uiscale));
-    background: linear-gradient(to bottom, rgba(10,12,20,.62), rgba(10,12,20,.28) 55%, transparent); }
+  /* the note + cents float in a bracketed panel centered below the tape */
+  .tNotePanel { position: absolute; left: 50%; top: calc(100% + 5px * var(--rs)); transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: calc(1px * var(--rs));
+    padding: calc(5px*var(--rs)) calc(14px*var(--rs)) calc(4px*var(--rs)); background: var(--panel);
+    backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); --c: var(--noteC); }
+  .tNoteBig { font-family: var(--font-display); font-weight: 700; font-size: calc(18px * var(--rs)); line-height: 1;
+    color: var(--noteC); text-shadow: 0 0 calc(12px * var(--rs)) var(--noteC); }
+  .tNoteBig .oct { font-size: .55em; color: var(--dim); margin-left: 1px; }
+  .tCents { font-size: calc(8.5px * var(--rs)); font-weight: 700; letter-spacing: .05em; color: var(--hot);
+    text-shadow: 0 0 calc(6px * var(--rs)) var(--noteC); }
 
-  /* per-channel meters — pinned to the bottom-left of the window (thin, translucent) */
-  #vmeters { position: absolute; left: calc(12px * var(--uiscale)); bottom: 9px; z-index: 3;
-    height: calc(26px * var(--uiscale)); gap: 2px; opacity: .92; }
-  #vmeters .bar { width: calc(3px * var(--uiscale)); background: rgba(255,255,255,.10); border-radius: 1px; }
-  #vmeters .bar > div { border-radius: 1px; }
-
-  .tag { display: flex; flex-direction: column; gap: 4px; flex: none; }
-  .tagPill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; font-family: var(--font-mono);
-    font-size: calc(9px * var(--uiscale)); font-weight: 700; letter-spacing: .08em; color: #fff; }
-  .tag .clock { font-family: var(--font-mono); font-size: calc(11px * var(--uiscale)); font-weight: 700;
-    color: rgba(255,255,255,.85); padding-left: 2px; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+  /* ---- status + KEY/TEMPO row ---- */
+  #statusRow { display: flex; align-items: flex-start; gap: calc(12px * var(--uiscale));
+    padding: calc(8px * var(--uiscale)) calc(14px * var(--uiscale)) 0; }
+  .stat { display: flex; flex-direction: column; gap: calc(3px * var(--uiscale)); }
+  .statline { display: flex; align-items: center; gap: calc(6px * var(--uiscale)); }
+  .statline .livedot { width: calc(6px*var(--uiscale)); height: calc(6px*var(--uiscale)); border-radius: 50%;
+    background: var(--clip); box-shadow: 0 0 calc(8px*var(--uiscale)) var(--clip); animation: hudPulse 1.6s infinite; }
+  .statline .brand { font-size: calc(9px*var(--uiscale)); font-weight: 700; letter-spacing: .16em; color: var(--hot); }
+  .statline .live  { font-size: calc(8px*var(--uiscale)); letter-spacing: .16em; color: var(--accent); }
+  .stat .cam { font-size: calc(9px*var(--uiscale)); color: var(--dim); letter-spacing: .05em; }
+  .stat .cam .clk { color: var(--hot); font-weight: 700; }
 
   .spacer { flex: 1; }
 
-  .readouts { display: flex; gap: calc(13px * var(--uiscale)); flex: none; }
-  .readouts .r .rl { font-family: var(--font-mono); font-size: calc(8px * var(--uiscale)); font-weight: 700; letter-spacing: .08em;
-    color: rgba(255,255,255,.65); text-shadow: 0 1px 4px rgba(0,0,0,.6); }
-  .readouts .r .rv { font-family: var(--font-display); font-size: calc(16px * var(--uiscale)); font-weight: 700; line-height: 1.1;
-    color: #fff; text-shadow: 0 1px 5px rgba(0,0,0,.7); }
+  .readout { position: relative; padding: calc(6px*var(--rs)) calc(13px*var(--rs)); background: var(--panel);
+    backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+  .readout.key   { --c: var(--keyC); }
+  .readout.tempo { --c: var(--tempoC); }
+  .br { position: absolute; width: calc(9px*var(--rs)); height: calc(9px*var(--rs)); }
+  .br.tl { top: 0; left: 0; border-top: 1px solid var(--c); border-left: 1px solid var(--c); }
+  .br.tr { top: 0; right: 0; border-top: 1px solid var(--c); border-right: 1px solid var(--c); }
+  .br.bl { bottom: 0; left: 0; border-bottom: 1px solid var(--c); border-left: 1px solid var(--c); }
+  .br.brr{ bottom: 0; right: 0; border-bottom: 1px solid var(--c); border-right: 1px solid var(--c); }
+  .rhead { display: flex; align-items: center; gap: calc(5px*var(--rs)); margin-bottom: calc(2px*var(--rs)); }
+  .rhead .rdot { width: calc(5px*var(--rs)); height: calc(5px*var(--rs)); border-radius: 50%; background: var(--c);
+    box-shadow: 0 0 calc(6px*var(--rs)) var(--c); animation: hudPulse 2.6s infinite; }
+  .rhead .rl { font-size: calc(8px*var(--uiscale)); font-weight: 700; letter-spacing: .2em; color: var(--dim); }
+  .rv { font-family: var(--font-display); font-weight: 700; font-size: calc(22px*var(--rs)); line-height: .92;
+    color: var(--c); text-shadow: 0 0 calc(16px*var(--rs)) var(--glow); letter-spacing: .01em; font-variant-numeric: tabular-nums; }
+  .rvwrap { display: flex; align-items: baseline; gap: calc(4px*var(--rs)); }
+  .rvwrap .bpm { font-size: calc(8px*var(--uiscale)); font-weight: 700; letter-spacing: .12em; color: var(--dim); }
 
-  /* tuner toggle + channel cycle + buffer cycle */
-  #tuneBtn, #tuneCh, #bufBtn { flex: none; cursor: pointer; color: #fff; font-family: var(--font-mono);
-    font-weight: 700; letter-spacing: .03em; background: transparent; border: none; display: flex;
-    flex-direction: column; align-items: center; line-height: 1.15; padding: calc(6px * var(--uiscale)) calc(8px * var(--uiscale)); font-size: calc(10px * var(--uiscale)); }
-  #tuneBtn .bl, #tuneCh .bl, #bufBtn .bl { font-size: calc(7px * var(--uiscale)); color: rgba(255,255,255,.55); letter-spacing: .08em; }
-  #tuneBtn.on { box-shadow: inset 0 0 0 1px rgba(47,207,107,.5); }
-  #tuneBtn.on #tuneState { color: var(--green); }
+  /* ===== BOTTOM BAND ===== */
+  #botband { position: absolute; left: 0; right: 0; bottom: calc(4px * var(--uiscale)); z-index: 5;
+    display: flex; align-items: flex-end; gap: calc(14px * var(--uiscale));
+    padding: 0 calc(14px * var(--uiscale)) calc(8px * var(--uiscale)); }
 
-  .actions { display: flex; align-items: center; gap: calc(7px * var(--uiscale)); flex: none; }
-  .sbtn { height: calc(36px * var(--uiscale)); border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 7px;
-    font-family: var(--font-mono); font-size: calc(11px * var(--uiscale)); font-weight: 700; letter-spacing: .03em; color: #fff;
-    border: 1px solid rgba(255,255,255,.2); padding: 0 calc(12px * var(--uiscale)); }
-  #recBtn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); animation: irRingR 1.6s infinite; }
-  #recBtn.recording { background: var(--red); border-color: transparent; }
-  #recBtn.recording .dot { animation: irPulse 1.2s infinite; }
-  #saveBtn { background: var(--red); border: none; padding: 0 calc(14px * var(--uiscale)); font-family: var(--font-display);
-    font-size: calc(12px * var(--uiscale)); letter-spacing: .02em; box-shadow: 0 6px 18px rgba(255,59,48,.42); }
-  #saveBtn .kbd { font-family: var(--font-mono); font-size: 9px; opacity: .85; background: rgba(255,255,255,.22);
-    padding: 2px 5px; border-radius: 4px; }
+  .meterbox .mhead { display: flex; align-items: baseline; gap: calc(7px*var(--uiscale)); margin-bottom: calc(4px*var(--uiscale)); }
+  .meterbox .mlabel { font-size: calc(8px*var(--uiscale)); font-weight: 700; letter-spacing: .18em; color: var(--accent); }
+  .meterbox .mspec  { font-size: calc(7.5px*var(--uiscale)); letter-spacing: .08em; color: var(--dim); }
+  #vmeters { display: flex; align-items: flex-end; gap: calc(2px * var(--uiscale)); height: calc(26px * var(--uiscale));
+    padding-bottom: calc(3px * var(--uiscale)); border-bottom: 1px solid var(--hud-line); }
+  #vmeters .bar { width: calc(3.5px * var(--uiscale)); height: 100%; background: rgba(255,255,255,.05);
+    display: flex; align-items: flex-end; }
+  #vmeters .bar > div { width: 100%; height: 0%; background: var(--grad); transition: height 80ms linear; }
+
+  .actions { display: flex; align-items: center; gap: calc(6px * var(--uiscale)); }
+  /* stacked label buttons (tuner / channel / buffer) */
+  #tuneBtn, #tuneCh, #bufBtn { cursor: pointer; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; line-height: 1.1; height: calc(31px*var(--uiscale)); padding: 0 calc(9px*var(--uiscale));
+    background: var(--panel); border: 1px solid var(--hud-line); border-radius: 3px; color: var(--hot);
+    font-family: var(--font-mono); font-weight: 700; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+  #tuneBtn .bl, #tuneCh .bl, #bufBtn .bl { font-size: calc(6.5px*var(--uiscale)); color: var(--dim); letter-spacing: .14em; }
+  #tuneBtn #tuneState, #tuneCh #tuneChVal, #bufBtn #bufVal { font-size: calc(10px*var(--uiscale)); letter-spacing: .06em; }
+  #tuneBtn.on { border-color: var(--tuneC); }
+  #tuneBtn.on #tuneState { color: var(--tuneC); }
+
+  .sbtn { display: flex; align-items: center; gap: calc(6px*var(--uiscale)); height: calc(31px*var(--uiscale));
+    padding: 0 calc(11px*var(--uiscale)); background: var(--panel); border: 1px solid var(--hud-line); border-radius: 3px;
+    color: var(--hot); font-family: var(--font-mono); font-weight: 700; font-size: calc(10px*var(--uiscale));
+    letter-spacing: .1em; cursor: pointer; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+  #recBtn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: irRingR 1.9s infinite; }
+  #recBtn.recording { background: var(--red); border-color: transparent; color: #fff; }
+  #recBtn.recording .dot { background: #fff; animation: irPulse 1.2s infinite; }
+  #saveBtn { background: var(--save); border: none; color: var(--saveInk); font-family: var(--font-display);
+    font-size: calc(11px*var(--uiscale)); letter-spacing: .04em; box-shadow: 0 0 calc(18px*var(--uiscale)) var(--glow); }
+  #saveBtn .kbd { font-family: var(--font-mono); font-size: calc(8px*var(--uiscale)); background: rgba(0,0,0,.2);
+    padding: 2px 5px; border-radius: 3px; }
   #saveBtn:disabled { opacity: .5; cursor: default; box-shadow: none; }
-  .iconBtn { width: calc(32px * var(--uiscale)); height: calc(32px * var(--uiscale)); border-radius: 8px; display: flex;
-    align-items: center; justify-content: center; cursor: pointer; color: #fff; font-size: calc(14px * var(--uiscale));
-    border: 1px solid rgba(255,255,255,.14); background: rgba(16,18,26,.5); }
+  .iconBtn { width: calc(31px*var(--uiscale)); height: calc(31px*var(--uiscale)); display: flex; align-items: center;
+    justify-content: center; background: var(--panel); border: 1px solid var(--hud-line); border-radius: 3px;
+    color: var(--accent); font-size: calc(13px*var(--uiscale)); cursor: pointer;
+    backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+
+  /* ===== buffer fill tape ===== */
+  #buffline { position: absolute; left: 0; right: 0; bottom: 0; height: calc(3px * var(--uiscale));
+    background: rgba(255,255,255,.07); z-index: 5; }
+  #bufFill { width: 0%; height: 100%; background: var(--buf); box-shadow: 0 0 calc(9px*var(--uiscale)) var(--buf);
+    transition: width .3s linear; }
 </style>
 </head>
 <body>
 <div id="strip">
   <div id="bg"></div>
   <video id="cam" autoplay muted playsinline hidden></video>
-  <div id="vignette"></div>
-  <div id="grain"></div>
 
-  <!-- tuner + controls, overlaid at the top of the video -->
+  <!-- decorative HUD chrome (hidden on the clean feed) -->
+  <div id="hudchrome">
+    <div id="grain"></div>
+    <div id="sweep"></div>
+    <div id="vignette"></div>
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner brr"></div>
+  </div>
+
+  <!-- ===== TOP BAND: tuner tape + status/readouts ===== -->
   <div id="topstack">
-  <!-- tuner overlay (top) -->
-  <div id="tuneBar" hidden>
-    <div class="tNote"><span id="tNote">—</span><span class="oct" id="tOct"></span><span class="ct" id="tCents"></span></div>
-    <div class="tScale">
-      <div class="tZone"></div>
-      <div class="tCenter"></div>
-      <div class="tNeedle" id="tNeedle"></div>
+    <!-- tuner tape -->
+    <div id="tuneBar" hidden>
+      <span class="tlabel">TUNER</span>
+      <div class="tScale">
+        <div class="tZone"></div>
+        <div class="tCenter"></div>
+        <div class="tNeedle" id="tNeedle"></div>
+        <div class="tNotePanel">
+          <i class="br tl"></i><i class="br tr"></i><i class="br bl"></i><i class="br brr"></i>
+          <div class="tNoteBig"><span id="tNote">—</span><span class="oct" id="tOct"></span></div>
+          <div class="tCents" id="tCents"></div>
+        </div>
+      </div>
+      <span class="tspec">±50¢ · 440Hz</span>
+    </div>
+
+    <!-- status + KEY / TEMPO -->
+    <div id="statusRow">
+      <div class="stat">
+        <div class="statline">
+          <span class="livedot"></span>
+          <span class="brand">IDEA·REC</span>
+          <span class="live">// LIVE</span>
+        </div>
+        <div class="cam">CAM·BUFFER <span class="clk" id="bufClock">0:00</span></div>
+      </div>
+
+      <div class="spacer"></div>
+
+      <div class="readout key">
+        <i class="br tl"></i><i class="br tr"></i><i class="br bl"></i><i class="br brr"></i>
+        <div class="rhead"><span class="rdot"></span><span class="rl">KEY</span></div>
+        <div class="rv" id="sKey">—</div>
+      </div>
+
+      <div class="readout tempo">
+        <i class="br tl"></i><i class="br tr"></i><i class="br bl"></i><i class="br brr"></i>
+        <div class="rhead"><span class="rdot"></span><span class="rl">TEMPO</span></div>
+        <div class="rvwrap"><span class="rv" id="sBpm">—</span><span class="bpm">BPM</span></div>
+      </div>
     </div>
   </div>
 
-  <!-- controls overlaid at the top, directly below the tuner -->
-  <div id="controls">
-    <div class="tag">
-      <span class="tagPill ir-glass"><span class="ir-livedot"></span>CAM · BUFFER</span>
-      <span class="clock" id="bufClock">0:00</span>
+  <!-- ===== BOTTOM BAND: meters + actions ===== -->
+  <div id="botband">
+    <div class="meterbox">
+      <div class="mhead"><span class="mlabel">INPUTS</span><span class="mspec" id="meterSpec"></span></div>
+      <div id="vmeters"></div>
     </div>
 
     <div class="spacer"></div>
 
-    <div class="readouts">
-      <div class="r"><div class="rl">KEY</div><div class="rv" id="sKey">—</div></div>
-      <div class="r"><div class="rl">TEMPO</div><div class="rv" id="sBpm">—</div></div>
-    </div>
-
-    <button id="tuneBtn" class="ir-glass" title="Chromatic tuner on a mono channel">
-      <span class="bl">TUNER</span><span id="tuneState">OFF</span>
-    </button>
-    <button id="tuneCh" class="ir-glass" title="Tuner channel — click to change" hidden>
-      <span class="bl">CH</span><span id="tuneChVal">1</span>
-    </button>
-
-    <button id="bufBtn" class="ir-glass" title="Buffer length — click to change">
-      <span class="bl">BUFFER</span><span id="bufVal">1:00</span>
-    </button>
-
     <div class="actions">
-      <button id="recBtn" class="sbtn ir-glass" title="Record continuously"><span class="dot"></span>REC</button>
+      <button id="tuneBtn" title="Chromatic tuner on a mono channel">
+        <span class="bl">TUNER</span><span id="tuneState">OFF</span>
+      </button>
+      <button id="tuneCh" title="Tuner channel — click to change" hidden>
+        <span class="bl">CH</span><span id="tuneChVal">1</span>
+      </button>
+      <button id="bufBtn" title="Buffer length — click to change">
+        <span class="bl">BUFFER</span><span id="bufVal">1:00</span>
+      </button>
+      <button id="recBtn" class="sbtn" title="Record continuously"><span class="dot"></span>REC</button>
       <button id="saveBtn" class="sbtn" disabled>Save last 1:00<span class="kbd">␣</span></button>
       <button id="sizeBtn" class="iconBtn" title="Expand / shrink the strip">⤢</button>
       <button id="gear" class="iconBtn" title="Settings &amp; captures">⚙</button>
     </div>
   </div>
-  </div>
 
-  <!-- multi-track audio meters + buffer line, pinned to the bottom -->
-  <div id="vmeters" class="ir-vmeter"></div>
+  <!-- buffer fill tape -->
   <div id="buffline"><div id="bufFill"></div></div>
 </div>
 
@@ -197,6 +325,8 @@ function buildMeters(n) {
     bar.innerHTML = "<div></div>";
     box.appendChild(bar);
   }
+  const sp = document.getElementById("meterSpec");
+  if (sp) sp.textContent = n + " CH";
 }
 
 function setReadouts(analysis) {
@@ -340,7 +470,7 @@ let sizeIdx = 0;
 function sizeHeights() {
   const avail = screen.availHeight || 900;
   // narrow strip → progressively taller, up to almost the full screen
-  return [116, Math.round(avail * 0.34), Math.round(avail * 0.60), Math.round(avail * 0.92)];
+  return [132, Math.round(avail * 0.34), Math.round(avail * 0.60), Math.round(avail * 0.92)];
 }
 function applySize() {
   const strip = $("strip");
@@ -356,6 +486,12 @@ function applySize() {
 function applyOverlay() {
   const on = (localStorage.getItem("ir-strip-overlay") || "on") !== "off";
   $("strip").classList.toggle("overlay-off", !on);
+}
+
+// Adaptive (status colour) by default; "ice" gives the monochrome cyan HUD.
+function applyTheme() {
+  $("strip").classList.toggle("theme-ice",
+    localStorage.getItem("ir-strip-theme") === "ice");
 }
 
 // ---- actions ----
@@ -421,6 +557,18 @@ document.addEventListener("keydown", e => {
 window.addEventListener("storage", async (e) => {
   if (e.key === "ir-strip-overlay") {
     applyOverlay();
+  } else if (e.key === "ir-strip-theme") {
+    applyTheme();
+  } else if (e.key === "idea-recorder-buffer") {
+    // settings changed the buffer → match it here and restart listening so the
+    // strip captures the new length (don't re-persist; that would echo back).
+    const secs = +localStorage.getItem("idea-recorder-buffer");
+    if (BUF_OPTS.includes(secs) && secs !== bufferSeconds()) {
+      bufIdx = BUF_OPTS.indexOf(secs);
+      $("bufVal").textContent = fmtClock(bufferSeconds());
+      $("saveBtn").firstChild.textContent = saveLabel();
+      if (running) { try { await api("/api/stop", {}); await startListening(); } catch (err) {} }
+    }
   } else if (e.key === "idea-recorder-device") {
     try { await api("/api/stop", {}); await startListening(); } catch (err) {}
   } else if (e.key === "ir-cam-owner") {
@@ -442,6 +590,7 @@ window.addEventListener("storage", async (e) => {
   if (savedSize >= 0 && savedSize <= 3) sizeIdx = savedSize;
   applySize();
   applyOverlay();
+  applyTheme();
   $("bufVal").textContent = fmtClock(bufferSeconds());
   $("saveBtn").firstChild.textContent = saveLabel();
   localStorage.setItem("ir-cam-owner", "strip");   // strip owns the camera by default

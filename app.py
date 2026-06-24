@@ -605,6 +605,14 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/":
             self._serve_file(STATIC / "index.html", "text/html")
+        elif path == "/strip":
+            self._serve_file(STATIC / "strip.html", "text/html")
+        elif path == "/widget":
+            self._serve_file(STATIC / "widget.html", "text/html")
+        elif path == "/theme.css":
+            self._serve_file(STATIC / "theme.css", "text/css")
+        elif path == "/core.js":
+            self._serve_file(STATIC / "core.js", "application/javascript")
         elif path == "/api/devices":
             # Re-scan for hot-plugged interfaces, but a PortAudio re-init
             # would kill a live stream, so only do it while everything's stopped.

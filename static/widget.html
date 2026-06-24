@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Idea Recorder — Widget</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  html, body { height: 100%; }
+  body { margin: 0; overflow: hidden; font-family: var(--font-body); background: var(--panel);
+    color: var(--ink); user-select: none; }
+  #widget { display: flex; flex-direction: column; height: 100vh; }
+
+  /* title bar */
+  .titlebar { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 12px;
+    background: var(--dark); flex: none; }
+  .tl { width: 10px; height: 10px; border-radius: 50%; cursor: pointer; }
+  .tl.r { background: #ff5f57; } .tl.y { background: #febc2e; } .tl.g { background: #28c840; }
+  .titlebar .name { margin-left: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    color: #c4c8d2; letter-spacing: .04em; }
+  .titlebar .live { margin-left: auto; display: flex; align-items: center; gap: 5px; font-family: var(--font-mono);
+    font-size: 9px; font-weight: 700; color: #ff5f57; }
+
+  /* squashed webcam */
+  .cam { position: relative; height: 96px; overflow: hidden; border-bottom: 2px solid var(--dark); flex: none;
+    background: linear-gradient(110deg, #171a28, #2c3147 45%, #3a3f58 72%, #1d2236); }
+  #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  .camTag { position: absolute; left: 11px; top: 9px; display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 8px; font-family: var(--font-mono); font-size: 9px; font-weight: 700; color: #fff; letter-spacing: .04em; }
+  .camMeters { position: absolute; right: 11px; bottom: 10px; height: 34px; padding: 6px 8px; }
+  .camMeters .bar { width: 6px; background: repeating-linear-gradient(0deg, rgba(255,255,255,.13) 0 2px, transparent 2px 4px); }
+  .bufline { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.16); }
+  #bufFill { width: 0%; height: 100%; background: var(--red); transition: width .3s linear; }
+
+  .body { padding: 15px 16px; }
+  /* readouts */
+  .ro { display: flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; margin-bottom: 14px; }
+  .ro > div { flex: 1; padding: 9px 10px; }
+  .ro > div + div { border-left: 1px solid var(--line); }
+  .ro .l { font-family: var(--font-mono); font-size: 9px; font-weight: 700; color: var(--dim); letter-spacing: .06em; }
+  .ro .v { font-family: var(--font-display); font-size: 19px; font-weight: 700; color: var(--ink); }
+  .ro .v.accent { color: var(--red); }
+
+  .saveBtn { width: 100%; padding: 14px; border: none; border-radius: 8px; background: var(--dark); color: #fff;
+    font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: .02em; cursor: pointer; margin-bottom: 8px; }
+  .saveBtn:disabled { background: var(--field); color: var(--dim); cursor: default; }
+  .recBtn { width: 100%; padding: 11px; border: 1.5px solid var(--border2); border-radius: 8px; background: var(--card);
+    color: var(--ink); font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: .04em;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .recBtn .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
+  .recBtn.recording { background: var(--red); color: #fff; border-color: transparent; }
+  .recBtn.recording .dot { background: #fff; animation: irPulse 1.2s infinite; }
+</style>
+</head>
+<body>
+<div id="widget">
+  <div class="titlebar">
+    <span class="tl r" id="closeBtn" title="Close"></span>
+    <span class="tl y"></span>
+    <span class="tl g" id="dashBtn" title="Open dashboard"></span>
+    <span class="name">IDEA REC</span>
+    <span class="live"><span class="ir-livedot"></span>LIVE</span>
+  </div>
+
+  <div class="cam">
+    <video id="cam" autoplay muted playsinline hidden></video>
+    <span class="camTag ir-glass"><span class="ir-livedot"></span><span id="camLabel">WEBCAM BUFFER · 0:00</span></span>
+    <div class="camMeters ir-glass ir-vmeter" id="vmeters"></div>
+    <div class="bufline"><div id="bufFill"></div></div>
+  </div>
+
+  <div class="body">
+    <div class="ro">
+      <div><div class="l">KEY</div><div class="v" id="sKey">—</div></div>
+      <div><div class="l">BPM</div><div class="v" id="sBpm">—</div></div>
+      <div><div class="l">±440</div><div class="v accent" id="sCents">—</div></div>
+    </div>
+    <button class="saveBtn" id="saveBtn" disabled>Save the last minute</button>
+    <button class="recBtn" id="recBtn"><span class="dot"></span>RECORD CONTINUOUSLY</button>
+  </div>
+</div>
+
+<div class="ir-toast" id="toast"></div>
+
+<script src="/core.js"></script>
+<script>
+const $ = IR.$, api = IR.api, toast = IR.toast, fmtClock = IR.fmtClock;
+let running = false, recording = false, smoothPeaks = [], deviceList = [];
+
+const bufferSeconds = () => +(localStorage.getItem("idea-recorder-buffer")) || 60;
+const cam = IR.createCamera({ previewEl: $("cam"), getBufferSeconds: bufferSeconds });
+
+function buildMeters(n) {
+  n = Math.min(n, 3);                 // the widget shows up to 3 bars
+  const box = $("vmeters");
+  if (box.childElementCount === n) return;
+  box.innerHTML = "";
+  smoothPeaks = new Array(n).fill(0);
+  for (let i = 0; i < n; i++) { const b = document.createElement("div"); b.className = "bar"; b.innerHTML = "<div></div>"; box.appendChild(b); }
+}
+
+function setReadouts(analysis) {
+  const f = IR.formatLive(analysis);
+  if (f.key) $("sKey").textContent = f.key.replace(" minor", "m").replace(" major", "");
+  if (f.bpm) $("sBpm").textContent = Math.round(parseFloat(f.bpm));
+  if (f.centsText !== undefined) $("sCents").textContent = f.centsText + "¢";
+}
+
+async function poll() {
+  if (!running) return;
+  try {
+    const s = await api("/api/status");
+    if (!s.running) { running = false; return; }
+    buildMeters(s.channels || 1);
+    IR.renderMeters([...$("vmeters").querySelectorAll(".bar > div")], s.peaks || [], smoothPeaks, "height");
+    setReadouts(s.analysis);
+    recording = !!s.recording;
+    $("recBtn").classList.toggle("recording", recording);
+    const target = s.seconds || 60;
+    $("bufFill").style.width = Math.min(100, (s.filled / target) * 100) + "%";
+  } catch (e) {}
+}
+
+function updateCamLabel() {
+  if (cam.isContinuous()) $("camLabel").textContent = "RECORDING · " + fmtClock(cam.continuousElapsed());
+  else if (cam.isActive()) $("camLabel").textContent = "WEBCAM BUFFER · " + fmtClock(cam.bufferSpan());
+}
+
+async function startListening() {
+  const remembered = localStorage.getItem("idea-recorder-device");
+  const dev = deviceList.find(d => d.name === remembered) || deviceList.find(d => d.default) || deviceList[0];
+  if (!dev) throw new Error("No input device");
+  await api("/api/start", { device: dev.index, seconds: bufferSeconds() });
+  running = true; $("saveBtn").disabled = false;
+}
+
+async function enableCam() {
+  if (!cam.pickVideoMime()) return;
+  const id = localStorage.getItem("idea-recorder-camera") || "";
+  try { await cam.enable(id); $("cam").hidden = false; } catch (e) {}
+}
+
+const bundleChannels = () => JSON.parse(localStorage.getItem("idea-recorder-bundle-chans") || "null") || [0, 1];
+
+$("saveBtn").onclick = async () => {
+  if (!running) return;
+  try {
+    const r = await api("/api/save", {});
+    if (cam.isActive()) { await cam.flush();
+      try { await cam.uploadVideo(r.saved, cam.collectSegments(false), bundleChannels()); }
+      catch (e) { toast("Audio saved; video failed", true); return; } }
+    toast("Saved " + r.duration + "s → " + r.saved);
+  } catch (e) { toast(e.message, true); }
+};
+
+$("recBtn").onclick = async () => {
+  try {
+    if (recording) {
+      const r = await api("/api/record/stop", {});
+      if (cam.isActive()) { await cam.flush(); cam.stopContinuous();
+        try { await cam.uploadVideo(r.saved, cam.collectSegments(true), bundleChannels()); } catch (e) {} }
+      toast("Recorded " + r.duration + "s → " + r.saved);
+    } else {
+      await api("/api/record/start", {});
+      if (cam.isActive()) cam.startContinuous();
+    }
+  } catch (e) { toast(e.message, true); }
+};
+
+const pwapi = () => (window.pywebview && window.pywebview.api) || null;
+$("closeBtn").onclick = () => { const a = pwapi(); if (a && a.close_window) a.close_window(); else window.close(); };
+$("dashBtn").onclick = () => { const a = pwapi(); if (a && a.open_dashboard) a.open_dashboard(); else window.open("/", "_blank"); };
+
+(async () => {
+  deviceList = await api("/api/devices");
+  await startListening();
+  try { await enableCam(); } catch (e) { /* camera optional — don't block metering */ }
+  setInterval(poll, 150);
+  setInterval(updateCamLabel, 500);
+})().catch(e => toast(e.message, true));
+</script>
+</body>
+</html>

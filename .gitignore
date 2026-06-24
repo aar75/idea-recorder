@@ -19,8 +19,10 @@ vendor/*
 !vendor/ffmpeg-arm64
 !vendor/ffmpeg-x86_64
 
-# Recorded audio (user content)
+# Recorded audio + companion video (user content)
 captures/*.wav
+captures/*.mp4
+captures/*.webm
 rec_*.wav
 idea_*.wav
 

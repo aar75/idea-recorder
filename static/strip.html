@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Idea Recorder — Strip</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden; font-family: var(--font-body);
+    background: #15182a; color: #fff; user-select: none;
+  }
+  /* --uiscale grows the controls as the strip is expanded to show more camera */
+  [hidden] { display: none !important; }   /* beats the display:flex rules below */
+  /* "hide overlay" setting → clean camera feed (app keeps running) */
+  #strip.overlay-off #topstack,
+  #strip.overlay-off #vmeters,
+  #strip.overlay-off #buffline { display: none !important; }
+  #strip { position: relative; width: 100%; height: 100vh; min-height: 96px; overflow: hidden; --uiscale: 1; }
+  #strip.size-1 { --uiscale: 1.18; }
+  #strip.size-2 { --uiscale: 1.36; }
+  #strip.size-3 { --uiscale: 1.5; }
+
+  /* webcam fills the strip */
+  #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    transform: scaleX(-1); background: #15182a; }
+  #bg { position: absolute; inset: 0; background:
+    linear-gradient(100deg, #171a28, #2a2f47 35%, #3c4262 58%, #262b42 80%, #15182a); }
+  #vignette { position: absolute; inset: 0; pointer-events: none; background:
+    linear-gradient(90deg, rgba(10,12,22,.55), transparent 18%, transparent 70%, rgba(10,12,22,.5)); }
+  #grain { position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px); }
+
+  /* tuner + controls stack, overlaid at the TOP of the video */
+  #topstack { position: absolute; top: 0; left: 0; right: 0; z-index: 4; }
+
+  /* ---- tuner overlay across the TOP (translucent) ---- */
+  #tuneBar { height: calc(24px * var(--uiscale));
+    display: flex; align-items: center; gap: calc(12px * var(--uiscale)); padding: 0 calc(14px * var(--uiscale));
+    background: rgba(16,18,26,.34); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border-bottom: 1px solid rgba(255,255,255,.08); }
+  #tuneBar .tNote { font-family: var(--font-mono); font-size: calc(11px * var(--uiscale)); font-weight: 700;
+    color: #fff; min-width: calc(92px * var(--uiscale)); text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+  #tuneBar .tNote .oct { color: rgba(255,255,255,.6); }
+  #tuneBar .tNote .ct { margin-left: 6px; color: rgba(255,255,255,.65); }
+  .tScale { position: relative; flex: 1; height: calc(12px * var(--uiscale)); }
+  .tZone { position: absolute; top: 0; bottom: 0; left: 45%; width: 10%; background: rgba(47,207,107,.22); border-radius: 2px; }
+  .tCenter { position: absolute; left: 50%; top: -1px; bottom: -1px; width: 1px; background: rgba(255,255,255,.5); transform: translateX(-50%); }
+  /* slower, eased motion so the needle reads calmly (was .09s linear) */
+  .tNeedle { position: absolute; top: -2px; bottom: -2px; left: 50%; width: 2px; background: #fff;
+    transform: translateX(-50%); opacity: .35; transition: left .28s cubic-bezier(.33,0,.2,1), background .2s, opacity .2s; }
+  #tuneBar.intune .tNeedle { background: var(--green); opacity: 1; }
+  #tuneBar.off .tNeedle { background: var(--red); opacity: 1; }
+
+  /* bottom buffer-fill line */
+  #buffline { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.14); z-index: 3; }
+  #bufFill { width: 0%; height: 100%; background: var(--red); transition: width .3s linear; }
+
+  /* controls — a translucent bar overlaid at the top (below the tuner); video fills below */
+  #controls { display: flex; align-items: center;
+    gap: calc(8px * var(--uiscale)); padding: calc(7px * var(--uiscale)) calc(12px * var(--uiscale));
+    background: linear-gradient(to bottom, rgba(10,12,20,.62), rgba(10,12,20,.28) 55%, transparent); }
+
+  /* per-channel meters — pinned to the bottom-left of the window (thin, translucent) */
+  #vmeters { position: absolute; left: calc(12px * var(--uiscale)); bottom: 9px; z-index: 3;
+    height: calc(26px * var(--uiscale)); gap: 2px; opacity: .92; }
+  #vmeters .bar { width: calc(3px * var(--uiscale)); background: rgba(255,255,255,.10); border-radius: 1px; }
+  #vmeters .bar > div { border-radius: 1px; }
+
+  .tag { display: flex; flex-direction: column; gap: 4px; flex: none; }
+  .tagPill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; font-family: var(--font-mono);
+    font-size: calc(9px * var(--uiscale)); font-weight: 700; letter-spacing: .08em; color: #fff; }
+  .tag .clock { font-family: var(--font-mono); font-size: calc(11px * var(--uiscale)); font-weight: 700;
+    color: rgba(255,255,255,.85); padding-left: 2px; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+
+  .spacer { flex: 1; }
+
+  .readouts { display: flex; gap: calc(13px * var(--uiscale)); flex: none; }
+  .readouts .r .rl { font-family: var(--font-mono); font-size: calc(8px * var(--uiscale)); font-weight: 700; letter-spacing: .08em;
+    color: rgba(255,255,255,.65); text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+  .readouts .r .rv { font-family: var(--font-display); font-size: calc(16px * var(--uiscale)); font-weight: 700; line-height: 1.1;
+    color: #fff; text-shadow: 0 1px 5px rgba(0,0,0,.7); }
+
+  /* tuner toggle + channel cycle + buffer cycle */
+  #tuneBtn, #tuneCh, #bufBtn { flex: none; cursor: pointer; color: #fff; font-family: var(--font-mono);
+    font-weight: 700; letter-spacing: .03em; background: transparent; border: none; display: flex;
+    flex-direction: column; align-items: center; line-height: 1.15; padding: calc(6px * var(--uiscale)) calc(8px * var(--uiscale)); font-size: calc(10px * var(--uiscale)); }
+  #tuneBtn .bl, #tuneCh .bl, #bufBtn .bl { font-size: calc(7px * var(--uiscale)); color: rgba(255,255,255,.55); letter-spacing: .08em; }
+  #tuneBtn.on { box-shadow: inset 0 0 0 1px rgba(47,207,107,.5); }
+  #tuneBtn.on #tuneState { color: var(--green); }
+
+  .actions { display: flex; align-items: center; gap: calc(7px * var(--uiscale)); flex: none; }
+  .sbtn { height: calc(36px * var(--uiscale)); border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 7px;
+    font-family: var(--font-mono); font-size: calc(11px * var(--uiscale)); font-weight: 700; letter-spacing: .03em; color: #fff;
+    border: 1px solid rgba(255,255,255,.2); padding: 0 calc(12px * var(--uiscale)); }
+  #recBtn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); animation: irRingR 1.6s infinite; }
+  #recBtn.recording { background: var(--red); border-color: transparent; }
+  #recBtn.recording .dot { animation: irPulse 1.2s infinite; }
+  #saveBtn { background: var(--red); border: none; padding: 0 calc(14px * var(--uiscale)); font-family: var(--font-display);
+    font-size: calc(12px * var(--uiscale)); letter-spacing: .02em; box-shadow: 0 6px 18px rgba(255,59,48,.42); }
+  #saveBtn .kbd { font-family: var(--font-mono); font-size: 9px; opacity: .85; background: rgba(255,255,255,.22);
+    padding: 2px 5px; border-radius: 4px; }
+  #saveBtn:disabled { opacity: .5; cursor: default; box-shadow: none; }
+  .iconBtn { width: calc(32px * var(--uiscale)); height: calc(32px * var(--uiscale)); border-radius: 8px; display: flex;
+    align-items: center; justify-content: center; cursor: pointer; color: #fff; font-size: calc(14px * var(--uiscale));
+    border: 1px solid rgba(255,255,255,.14); background: rgba(16,18,26,.5); }
+</style>
+</head>
+<body>
+<div id="strip">
+  <div id="bg"></div>
+  <video id="cam" autoplay muted playsinline hidden></video>
+  <div id="vignette"></div>
+  <div id="grain"></div>
+
+  <!-- tuner + controls, overlaid at the top of the video -->
+  <div id="topstack">
+  <!-- tuner overlay (top) -->
+  <div id="tuneBar" hidden>
+    <div class="tNote"><span id="tNote">—</span><span class="oct" id="tOct"></span><span class="ct" id="tCents"></span></div>
+    <div class="tScale">
+      <div class="tZone"></div>
+      <div class="tCenter"></div>
+      <div class="tNeedle" id="tNeedle"></div>
+    </div>
+  </div>
+
+  <!-- controls overlaid at the top, directly below the tuner -->
+  <div id="controls">
+    <div class="tag">
+      <span class="tagPill ir-glass"><span class="ir-livedot"></span>CAM · BUFFER</span>
+      <span class="clock" id="bufClock">0:00</span>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="readouts">
+      <div class="r"><div class="rl">KEY</div><div class="rv" id="sKey">—</div></div>
+      <div class="r"><div class="rl">TEMPO</div><div class="rv" id="sBpm">—</div></div>
+    </div>
+
+    <button id="tuneBtn" class="ir-glass" title="Chromatic tuner on a mono channel">
+      <span class="bl">TUNER</span><span id="tuneState">OFF</span>
+    </button>
+    <button id="tuneCh" class="ir-glass" title="Tuner channel — click to change" hidden>
+      <span class="bl">CH</span><span id="tuneChVal">1</span>
+    </button>
+
+    <button id="bufBtn" class="ir-glass" title="Buffer length — click to change">
+      <span class="bl">BUFFER</span><span id="bufVal">1:00</span>
+    </button>
+
+    <div class="actions">
+      <button id="recBtn" class="sbtn ir-glass" title="Record continuously"><span class="dot"></span>REC</button>
+      <button id="saveBtn" class="sbtn" disabled>Save last 1:00<span class="kbd">␣</span></button>
+      <button id="sizeBtn" class="iconBtn" title="Expand / shrink the strip">⤢</button>
+      <button id="gear" class="iconBtn" title="Settings &amp; captures">⚙</button>
+    </div>
+  </div>
+  </div>
+
+  <!-- multi-track audio meters + buffer line, pinned to the bottom -->
+  <div id="vmeters" class="ir-vmeter"></div>
+  <div id="buffline"><div id="bufFill"></div></div>
+</div>
+
+<div class="ir-toast" id="toast"></div>
+
+<script src="/core.js"></script>
+<script>
+const $ = IR.$, api = IR.api, toast = IR.toast, fmtClock = IR.fmtClock;
+let running = false, recording = false, smoothPeaks = [], deviceList = [];
+let curDev = null;                 // the input device the strip is listening on
+let camId = "";                    // camera deviceId currently in use
+
+const BUF_OPTS = [30, 60, 120, 300];
+let bufIdx = 1;
+const bufferSeconds = () => BUF_OPTS[bufIdx];
+const saveLabel = () => "Save last " + fmtClock(bufferSeconds());
+
+const cam = IR.createCamera({
+  previewEl: $("cam"),
+  getBufferSeconds: bufferSeconds,
+  onEnded: () => { setTimeout(reconcileCam, 800); },  // reacquire if the strip still owns it
+});
+
+// ---- per-channel meters (one thin bar per channel of the selected stream) ----
+function buildMeters(n) {
+  const box = $("vmeters");
+  if (box.childElementCount === n) return;
+  box.innerHTML = "";
+  smoothPeaks = new Array(n).fill(0);
+  for (let i = 0; i < n; i++) {
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    bar.innerHTML = "<div></div>";
+    box.appendChild(bar);
+  }
+}
+
+function setReadouts(analysis) {
+  const f = IR.formatLive(analysis);
+  if (f.key) $("sKey").textContent = f.key.replace(" minor", "m").replace(" major", "");
+  if (f.bpm) $("sBpm").textContent = f.bpm;
+}
+
+async function poll() {
+  if (!running) return;
+  try {
+    const s = await api("/api/status");
+    if (!s.running) { running = false; return; }
+    buildMeters(s.channels || 1);
+    IR.renderMeters([...$("vmeters").querySelectorAll(".bar > div")], s.peaks || [], smoothPeaks, "height");
+    setReadouts(s.analysis);
+    recording = !!s.recording;
+    $("recBtn").classList.toggle("recording", recording);
+    const target = s.seconds || 60;
+    $("bufFill").style.width = Math.min(100, (s.filled / target) * 100) + "%";
+  } catch (e) { /* keep polling */ }
+}
+
+function updateCamClock() {
+  if (cam.isContinuous()) $("bufClock").textContent = "● " + fmtClock(cam.continuousElapsed());
+  else if (cam.isActive()) $("bufClock").textContent = fmtClock(cam.bufferSpan());
+}
+
+// ---- listening lifecycle ----
+function pickDevice() {
+  const remembered = localStorage.getItem("idea-recorder-device");
+  return deviceList.find(d => d.name === remembered) ||
+         deviceList.find(d => d.default) || deviceList[0];
+}
+
+async function startListening() {
+  curDev = pickDevice();
+  if (!curDev) throw new Error("No input device");
+  await api("/api/start", { device: curDev.index, seconds: bufferSeconds() });
+  running = true;
+  $("saveBtn").disabled = false;
+}
+
+async function restartForBuffer() {
+  localStorage.setItem("idea-recorder-buffer", bufferSeconds());
+  $("bufVal").textContent = fmtClock(bufferSeconds());
+  $("saveBtn").firstChild.textContent = saveLabel();
+  if (!running) return;
+  try { await api("/api/stop", {}); await startListening(); }
+  catch (e) { toast(e.message, true); }
+}
+
+let camStarting = false;
+async function enableCam() {
+  if (!cam.pickVideoMime() || cam.isActive() || camStarting) return;
+  camStarting = true;
+  try {
+    camId = localStorage.getItem("idea-recorder-camera") || "";
+    await cam.enable(camId);
+    $("cam").hidden = false;
+  } finally { camStarting = false; }
+}
+
+// Single-owner hand-off with the settings window: the strip holds the camera
+// unless the settings view has claimed it ("ir-cam-owner" === "settings").
+// Runs on storage events and on a timer, so it self-heals even if an event is
+// missed (e.g. the settings window closing while it held the camera).
+function reconcileCam() {
+  const owner = localStorage.getItem("ir-cam-owner") || "strip";
+  if (owner === "settings") {
+    if (cam.isActive()) cam.disable();
+    $("cam").hidden = true;            // show the gradient while settings has it
+  } else {
+    if (!cam.isActive()) enableCam().catch(() => {});
+  }
+}
+
+function bundleChannels() {
+  const saved = JSON.parse(localStorage.getItem("idea-recorder-bundle-chans") || "null");
+  return saved || [0, 1];
+}
+
+// ---- tuner (top overlay) ----
+let tunerRunning = false, tunerCh = 0, needleCents = 0;
+
+function deviceChannels() { return curDev ? curDev.channels : 1; }
+
+async function startTuner() {
+  if (!curDev) return;
+  tunerCh = Math.min(tunerCh, deviceChannels() - 1);
+  await api("/api/tuner/start", { device: curDev.index, channel: tunerCh });
+  tunerRunning = true;
+  $("tuneBar").hidden = false;
+  $("tuneCh").hidden = false;
+  $("tuneState").textContent = "ON";
+  $("tuneBtn").classList.add("on");
+  $("tuneChVal").textContent = tunerCh + 1;
+}
+
+async function stopTuner() {
+  await api("/api/tuner/stop", {});
+  tunerRunning = false;
+  $("tuneBar").hidden = true;
+  $("tuneCh").hidden = true;
+  $("tuneState").textContent = "OFF";
+  $("tuneBtn").classList.remove("on");
+}
+
+function updateTuner(st) {
+  const bar = $("tuneBar"), r = st && st.reading;
+  if (r && typeof r.cents === "number") {
+    const a = Math.round(Math.abs(r.cents));
+    $("tNote").textContent = r.note;
+    $("tOct").textContent = r.octave;
+    $("tCents").textContent = (r.cents > 0 ? "+" : r.cents < 0 ? "−" : "") + a + "¢";
+    // Ease the needle toward the reading so it settles calmly instead of darting.
+    needleCents += (r.cents - needleCents) * 0.3;
+    $("tNeedle").style.left = Math.max(0, Math.min(100, 50 + needleCents)) + "%";
+    bar.classList.toggle("intune", a <= 5);
+    bar.classList.toggle("off", a > 5);
+  } else {
+    $("tNote").textContent = "—"; $("tOct").textContent = ""; $("tCents").textContent = "";
+    needleCents = 0;
+    $("tNeedle").style.left = "50%";
+    bar.classList.remove("intune", "off");
+  }
+}
+
+async function tunerPoll() {
+  if (!tunerRunning) return;
+  try {
+    const st = await api("/api/tuner/status");
+    updateTuner(st);
+    if (!st.running) { tunerRunning = false; $("tuneBar").hidden = true; $("tuneCh").hidden = true;
+      $("tuneState").textContent = "OFF"; $("tuneBtn").classList.remove("on"); }
+  } catch (e) { /* keep polling */ }
+}
+
+// ---- expand / shrink (preset sizes; the native window resizes via the bridge) ----
+let sizeIdx = 0;
+function sizeHeights() {
+  const avail = screen.availHeight || 900;
+  // narrow strip → progressively taller, up to almost the full screen
+  return [116, Math.round(avail * 0.34), Math.round(avail * 0.60), Math.round(avail * 0.92)];
+}
+function applySize() {
+  const strip = $("strip");
+  strip.classList.remove("size-1", "size-2", "size-3");
+  if (sizeIdx > 0) strip.classList.add("size-" + sizeIdx);
+  localStorage.setItem("ir-strip-size", sizeIdx);
+  const a = window.pywebview && window.pywebview.api;   // resize the real window in the desktop app
+  if (a && a.resize_strip) a.resize_strip(sizeHeights()[sizeIdx]);
+}
+
+// Show/hide the on-screen overlay (controls + meters). Toggled from the
+// settings window via the shared "ir-strip-overlay" flag; the app keeps running.
+function applyOverlay() {
+  const on = (localStorage.getItem("ir-strip-overlay") || "on") !== "off";
+  $("strip").classList.toggle("overlay-off", !on);
+}
+
+// ---- actions ----
+$("bufBtn").onclick = () => { bufIdx = (bufIdx + 1) % BUF_OPTS.length; restartForBuffer(); };
+$("sizeBtn").onclick = () => { sizeIdx = (sizeIdx + 1) % 4; applySize(); };
+
+$("tuneBtn").onclick = async () => {
+  try { tunerRunning ? await stopTuner() : await startTuner(); }
+  catch (e) { toast(e.message, true); }
+};
+
+$("tuneCh").onclick = async () => {
+  tunerCh = (tunerCh + 1) % deviceChannels();
+  $("tuneChVal").textContent = tunerCh + 1;
+  localStorage.setItem("idea-recorder-tuner-channel", tunerCh);
+  if (tunerRunning) { try { await startTuner(); } catch (e) { toast(e.message, true); } }
+};
+
+$("saveBtn").onclick = async () => {
+  if (!running) return;
+  try {
+    const r = await api("/api/save", {});
+    if (cam.isActive()) {
+      await cam.flush();
+      try { await cam.uploadVideo(r.saved, cam.collectSegments(false), bundleChannels()); }
+      catch (e) { toast("Audio saved; video failed", true); return; }
+    }
+    toast("Saved " + r.duration + "s → " + r.saved);
+  } catch (e) { toast(e.message, true); }
+};
+
+$("recBtn").onclick = async () => {
+  try {
+    if (recording) {
+      const r = await api("/api/record/stop", {});
+      if (cam.isActive()) {
+        await cam.flush(); cam.stopContinuous();
+        try { await cam.uploadVideo(r.saved, cam.collectSegments(true), bundleChannels()); } catch (e) {}
+      }
+      toast("Recorded " + r.duration + "s → " + r.saved);
+    } else {
+      await api("/api/record/start", {});
+      if (cam.isActive()) cam.startContinuous();
+    }
+  } catch (e) { toast(e.message, true); }
+};
+
+$("gear").onclick = () => {
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_dashboard)
+    window.pywebview.api.open_dashboard();
+  else window.open("/", "_blank");
+};
+
+document.addEventListener("keydown", e => {
+  if (e.code === "Space" && running && !["BUTTON", "SELECT"].includes(document.activeElement.tagName)) {
+    e.preventDefault(); $("saveBtn").click();
+  }
+});
+
+// Keep the strip synced with choices made in the dashboard ("the menu"): the
+// dashboard and strip are separate windows but share localStorage, so a device
+// or camera change there drives the strip too (they show the same sources).
+window.addEventListener("storage", async (e) => {
+  if (e.key === "ir-strip-overlay") {
+    applyOverlay();
+  } else if (e.key === "idea-recorder-device") {
+    try { await api("/api/stop", {}); await startListening(); } catch (err) {}
+  } else if (e.key === "ir-cam-owner") {
+    reconcileCam();
+  } else if (e.key === "idea-recorder-camera") {
+    const owner = localStorage.getItem("ir-cam-owner") || "strip";
+    if (owner === "strip" && (localStorage.getItem("idea-recorder-camera") || "") !== camId) {
+      if (cam.isActive()) cam.disable();
+      enableCam().catch(() => {});
+    }
+  }
+});
+
+(async () => {
+  const savedBuf = +localStorage.getItem("idea-recorder-buffer");
+  if (BUF_OPTS.includes(savedBuf)) bufIdx = BUF_OPTS.indexOf(savedBuf);
+  tunerCh = +localStorage.getItem("idea-recorder-tuner-channel") || 0;
+  const savedSize = +localStorage.getItem("ir-strip-size");
+  if (savedSize >= 0 && savedSize <= 3) sizeIdx = savedSize;
+  applySize();
+  applyOverlay();
+  $("bufVal").textContent = fmtClock(bufferSeconds());
+  $("saveBtn").firstChild.textContent = saveLabel();
+  localStorage.setItem("ir-cam-owner", "strip");   // strip owns the camera by default
+  deviceList = await api("/api/devices");
+  await startListening();
+  try { await enableCam(); } catch (e) { /* camera optional — don't block metering */ }
+  setInterval(poll, 150);
+  setInterval(tunerPoll, 90);
+  setInterval(updateCamClock, 500);
+  setInterval(reconcileCam, 1500);   // self-heal the camera hand-off
+})().catch(e => toast(e.message, true));
+</script>
+</body>
+</html>

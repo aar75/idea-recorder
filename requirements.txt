@@ -1,3 +1,11 @@
 sounddevice==0.5.5
 soundfile==0.13.1
 numpy==2.0.2
+# Standalone always-on-top UI (strip / widget). pyobjc is pinned to 11.1: the
+# 12.x line fails to build wheels on the macOS 11/12 SDK these apps target.
+pywebview==6.2.1
+pyobjc-core==11.1
+pyobjc-framework-Cocoa==11.1
+pyobjc-framework-WebKit==11.1
+pyobjc-framework-Quartz==11.1
+pyobjc-framework-Security==11.1

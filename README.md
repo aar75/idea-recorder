@@ -71,10 +71,14 @@ Beyond the browser dashboard, there's a native **always-on-top capture strip**
 you can park at the top of your screen as a glanceable dashboard — the webcam
 spans the strip with floating glass controls over it: a buffer readout, a live
 audio meter, KEY / TEMPO / ±440 readouts, a buffer-length picker, and **REC** +
-**Save** buttons (Spacebar saves). A compact **floating widget** is available
-too. Both auto-start listening and the camera on launch; the **⚙ / green dot**
-opens the full dashboard for detailed settings, captures, the tuner, and the
-file analyzer.
+**Save** buttons (Spacebar saves). When no camera is connected the strip (and
+widget) play a **hyperspace warp** in place of the feed. A compact **floating
+widget** is available too. The **⚙ / green dot** opens the full dashboard for
+detailed settings, captures, the tuner, and the file analyzer.
+
+On launch the app opens the **settings menu** with the strip **off by default**;
+flip on *Show the on-screen strip* there to bring it up. Listening and the camera
+buffer start in the background regardless, so capture is never blocked.
 
 It's a native window (macOS WKWebView via pywebview — *not* a browser tab) that
 reuses the same server, so metering, key/tempo, the camera buffer, and saving
@@ -86,7 +90,8 @@ behave exactly like the dashboard. Run it from source with:
 .venv/bin/python desktop.py --dashboard
 ```
 
-The packaged `.app` launches the strip by default.
+The packaged `.app` opens the settings menu on launch; the strip is off until
+you turn it on there.
 
 ## Easiest: double-click to launch
 

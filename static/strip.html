@@ -74,6 +74,9 @@
   #bg::after { content: ""; position: absolute; inset: 0; background:
     radial-gradient(38% 64% at 63% 80%, rgba(255,150,72,.10), transparent 70%),
     radial-gradient(34% 56% at 28% 72%, rgba(64,128,190,.12), transparent 72%); }
+  /* warp starfield shown when there's no live camera feed; sits over #bg, under
+     the #cam video (which paints above it when active) and the HUD chrome. */
+  #hyper { position: absolute; inset: 0; width: 100%; height: 100%; }
 
   /* decorative HUD chrome — hidden on the clean ("overlay off") feed */
   #hudchrome { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
@@ -207,6 +210,7 @@
 <body>
 <div id="strip">
   <div id="bg"></div>
+  <canvas id="hyper"></canvas>
   <video id="cam" autoplay muted playsinline hidden></video>
 
   <!-- decorative HUD chrome (hidden on the clean feed) -->
@@ -313,6 +317,16 @@ const cam = IR.createCamera({
   onEnded: () => { setTimeout(reconcileCam, 800); },  // reacquire if the strip still owns it
 });
 
+// Show the live camera when it's running, otherwise run the hyperspace warp in
+// its place (no camera connected, or the settings window holds the camera).
+const hyper = IR.createHyperspace($("hyper"));
+function refreshCamView() {
+  const live = cam.isActive();
+  $("cam").hidden = !live;
+  $("hyper").hidden = live;
+  hyper.setActive(!live);
+}
+
 // ---- per-channel meters (one thin bar per channel of the selected stream) ----
 function buildMeters(n) {
   const box = $("vmeters");
@@ -351,6 +365,7 @@ async function poll() {
 }
 
 function updateCamClock() {
+  refreshCamView();                  // safety net: keep warp/cam in sync
   if (cam.isContinuous()) $("bufClock").textContent = "● " + fmtClock(cam.continuousElapsed());
   else if (cam.isActive()) $("bufClock").textContent = fmtClock(cam.bufferSpan());
 }
@@ -386,7 +401,7 @@ async function enableCam() {
   try {
     camId = localStorage.getItem("idea-recorder-camera") || "";
     await cam.enable(camId);
-    $("cam").hidden = false;
+    refreshCamView();
   } finally { camStarting = false; }
 }
 
@@ -398,10 +413,10 @@ function reconcileCam() {
   const owner = localStorage.getItem("ir-cam-owner") || "strip";
   if (owner === "settings") {
     if (cam.isActive()) cam.disable();
-    $("cam").hidden = true;            // show the gradient while settings has it
   } else {
     if (!cam.isActive()) enableCam().catch(() => {});
   }
+  refreshCamView();                    // hyperspace fills in whenever cam is off
 }
 
 function bundleChannels() {
@@ -591,6 +606,7 @@ window.addEventListener("storage", async (e) => {
   applySize();
   applyOverlay();
   applyTheme();
+  refreshCamView();                  // warp on until the camera attaches
   $("bufVal").textContent = fmtClock(bufferSeconds());
   $("saveBtn").firstChild.textContent = saveLabel();
   localStorage.setItem("ir-cam-owner", "strip");   // strip owns the camera by default

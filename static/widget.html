@@ -25,6 +25,8 @@
   .cam { position: relative; height: 96px; overflow: hidden; border-bottom: 2px solid var(--dark); flex: none;
     background: linear-gradient(110deg, #171a28, #2c3147 45%, #3a3f58 72%, #1d2236); }
   #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  /* warp starfield shown in the webcam panel when no camera is connected */
+  #hyper { position: absolute; inset: 0; width: 100%; height: 100%; }
   .camTag { position: absolute; left: 11px; top: 9px; display: inline-flex; align-items: center; gap: 5px;
     padding: 4px 8px; font-family: var(--font-mono); font-size: 9px; font-weight: 700; color: #fff; letter-spacing: .04em; }
   .camMeters { position: absolute; right: 11px; bottom: 10px; height: 34px; padding: 6px 8px; }
@@ -63,6 +65,7 @@
   </div>
 
   <div class="cam">
+    <canvas id="hyper"></canvas>
     <video id="cam" autoplay muted playsinline hidden></video>
     <span class="camTag ir-glass"><span class="ir-livedot"></span><span id="camLabel">WEBCAM BUFFER · 0:00</span></span>
     <div class="camMeters ir-glass ir-vmeter" id="vmeters"></div>
@@ -89,6 +92,15 @@ let running = false, recording = false, smoothPeaks = [], deviceList = [];
 
 const bufferSeconds = () => +(localStorage.getItem("idea-recorder-buffer")) || 60;
 const cam = IR.createCamera({ previewEl: $("cam"), getBufferSeconds: bufferSeconds });
+
+// Live camera when running, otherwise the hyperspace warp fills the webcam panel.
+const hyper = IR.createHyperspace($("hyper"));
+function refreshCamView() {
+  const live = cam.isActive();
+  $("cam").hidden = !live;
+  $("hyper").hidden = live;
+  hyper.setActive(!live);
+}
 
 function buildMeters(n) {
   n = Math.min(n, 3);                 // the widget shows up to 3 bars
@@ -122,6 +134,7 @@ async function poll() {
 }
 
 function updateCamLabel() {
+  refreshCamView();                  // keep warp/cam in sync if the camera drops
   if (cam.isContinuous()) $("camLabel").textContent = "RECORDING · " + fmtClock(cam.continuousElapsed());
   else if (cam.isActive()) $("camLabel").textContent = "WEBCAM BUFFER · " + fmtClock(cam.bufferSpan());
 }
@@ -137,7 +150,8 @@ async function startListening() {
 async function enableCam() {
   if (!cam.pickVideoMime()) return;
   const id = localStorage.getItem("idea-recorder-camera") || "";
-  try { await cam.enable(id); $("cam").hidden = false; } catch (e) {}
+  try { await cam.enable(id); } catch (e) {}
+  refreshCamView();
 }
 
 const bundleChannels = () => JSON.parse(localStorage.getItem("idea-recorder-bundle-chans") || "null") || [0, 1];
@@ -172,6 +186,7 @@ $("closeBtn").onclick = () => { const a = pwapi(); if (a && a.close_window) a.cl
 $("dashBtn").onclick = () => { const a = pwapi(); if (a && a.open_dashboard) a.open_dashboard(); else window.open("/", "_blank"); };
 
 (async () => {
+  refreshCamView();                  // warp on until the camera attaches
   deviceList = await api("/api/devices");
   await startListening();
   try { await enableCam(); } catch (e) { /* camera optional — don't block metering */ }

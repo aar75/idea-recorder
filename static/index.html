@@ -266,7 +266,7 @@
 
   <!-- show / hide the whole strip -->
   <label class="overlaySwitch">
-    <input type="checkbox" id="overlayToggle" checked>
+    <input type="checkbox" id="overlayToggle">
     <span class="ov-text">Show the on-screen strip
       <small>Hide the entire strip — capture keeps running in the background. Bring it back here, or by clicking the app's Dock icon.</small></span>
   </label>
@@ -929,8 +929,10 @@ window.addEventListener("pagehide", () => {
 
 // Show/hide the whole strip window via the bridge. The localStorage flag also
 // drives the strip's CSS overlay as a fallback when there's no native window
-// (e.g. viewing /strip in a browser). Default to visible each time settings open.
-$("overlayToggle").checked = true;
+// (e.g. viewing /strip in a browser). The strip is OFF by default: it launches
+// hidden and is turned on from here, so reset the flag off each time settings open.
+localStorage.setItem("ir-strip-overlay", "off");
+$("overlayToggle").checked = false;
 $("overlayToggle").onchange = () => {
   const visible = $("overlayToggle").checked;
   localStorage.setItem("ir-strip-overlay", visible ? "on" : "off");

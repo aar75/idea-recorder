@@ -242,5 +242,66 @@
     };
   };
 
+  // =========================================================================
+  // Hyperspace background
+  //
+  // A lightweight warp-starfield drawn on a <canvas>, shown on the strip and the
+  // widget whenever there's no live camera feed (no camera connected, or the
+  // camera is held by another window). Stars streak outward from the centre. The
+  // rAF loop only runs while active — setActive(false) stops it — so it costs
+  // nothing once the camera takes over.
+  // =========================================================================
+  IR.createHyperspace = function (canvas) {
+    const ctx = canvas.getContext("2d");
+    let raf = 0, stars = [], w = 0, h = 0, cx = 0, cy = 0;
+    const N = 280, SPEED = 0.015;
+
+    function resize() {
+      w = canvas.width = canvas.clientWidth || 1;
+      h = canvas.height = canvas.clientHeight || 1;
+      cx = w / 2; cy = h / 2;
+    }
+    function seed() {
+      stars = [];
+      for (let i = 0; i < N; i++)
+        stars.push({ x: Math.random() * 2 - 1, y: Math.random() * 2 - 1, z: Math.random() });
+    }
+    function frame() {
+      // Pick up strip/widget resizes without restarting the loop.
+      if (canvas.clientWidth !== w || canvas.clientHeight !== h) resize();
+      ctx.fillStyle = "#04060b";
+      ctx.fillRect(0, 0, w, h);
+      const spread = Math.max(w, h);
+      for (const s of stars) {
+        const pz = s.z;
+        s.z -= SPEED;
+        if (s.z <= 0.02) {            // recycle a star that reached the viewer
+          s.x = Math.random() * 2 - 1; s.y = Math.random() * 2 - 1; s.z = 1;
+          continue;                   // skip drawing so it doesn't streak across
+        }
+        const k = 1 / s.z - 1, pk = 1 / pz - 1;     // projected offset, near vs prev
+        const x = cx + s.x * spread * k,  y = cy + s.y * spread * k;
+        const px = cx + s.x * spread * pk, py = cy + s.y * spread * pk;
+        const a = Math.min(1, (1 - s.z) * 1.5);
+        ctx.strokeStyle = "rgba(190,232,255," + a + ")";
+        ctx.lineWidth = Math.max(0.5, (1 - s.z) * 2.4);
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    return {
+      setActive(on) {
+        if (on) {
+          if (raf) return;            // already warping
+          resize();
+          if (!stars.length) seed();
+          raf = requestAnimationFrame(frame);
+        } else if (raf) {
+          cancelAnimationFrame(raf); raf = 0;
+        }
+      },
+    };
+  };
+
   global.IR = IR;
 })(window);

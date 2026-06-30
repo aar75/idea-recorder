@@ -172,10 +172,18 @@ def main():
                               frameless=True, easy_drag=True, on_top=True,
                               resizable=False, js_api=bridge)
     else:
+        # The strip is OFF by default: create it hidden so capture is wired up,
+        # then open the settings menu on startup. The user clicks the strip on
+        # from there ("Show the on-screen strip"), which calls set_strip_visible.
         webview.create_window("Idea Recorder", url=base + "/strip",
                               width=sw, height=116, x=0, y=0,
                               frameless=True, easy_drag=True, on_top=True,
-                              resizable=False, js_api=bridge)
+                              resizable=False, js_api=bridge, hidden=True)
+        webview.create_window("The Dashboard",
+                              url=base + "/?panel=strip",
+                              width=720, height=min(900, sh - 200),
+                              x=max(0, (sw - 720) // 2), y=160,
+                              min_size=(560, 600), js_api=bridge)
 
     _patch_cocoa_for_camera()
     webview.start()

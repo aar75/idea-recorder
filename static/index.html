@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Idea Recorder">
+<meta name="theme-color" content="#f4f5f9">
 <title>The Dashboard</title>
 <link rel="stylesheet" href="/theme.css">
 <style>
@@ -138,6 +142,30 @@
   .tunerScaleLabels { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--dim); }
   .tunerFreq { font-family: var(--font-mono); font-size: 11px; color: var(--dim); margin-top: 9px; font-variant-numeric: tabular-nums; }
 
+  /* tap tempo */
+  #tapArm.live { background: var(--field); border-color: var(--border2); color: var(--ink); }
+  .tapPad { margin-top: 14px; padding: 24px 16px; text-align: center; cursor: pointer; user-select: none;
+    background: var(--field); border: 1px solid var(--border); border-radius: 10px;
+    transition: border-color .15s, background .12s, box-shadow .15s; }
+  .tapPad.armed { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(79,107,237,.13); }
+  .tapPad.hit { background: rgba(79,107,237,.09); }
+  .tapBpm { font-family: var(--font-display); font-size: 46px; font-weight: 700; line-height: 1;
+    letter-spacing: -.02em; color: var(--dim); font-variant-numeric: tabular-nums; transition: color .15s; }
+  .tapPad.has .tapBpm { color: var(--ink); }
+  .tapBpm .tapUnit { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--dim); margin-left: 7px; }
+  .tapSub { font-family: var(--font-mono); font-size: 11px; color: var(--dim); margin-top: 9px; min-height: 16px; }
+  .tapDots { display: flex; justify-content: center; gap: 9px; margin-top: 15px; }
+  .tapDots span { width: 9px; height: 9px; border-radius: 50%; background: #cfd6ea;
+    transition: background .12s, transform .12s; }
+  .tapDots span.on { background: var(--blue); transform: scale(1.4); }
+  .tapGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; margin-top: 14px;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .tapCell { padding: 12px 14px; }
+  .tapCell + .tapCell { border-left: 1px solid var(--line); }
+  .tapNum { display: block; font-family: var(--font-display); font-size: 20px; font-weight: 700;
+    margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .tapNum small { font-size: 12px; font-weight: 600; color: var(--dim); margin-left: 3px; }
+
   /* saving-to bar + captures */
   .savePath { display: flex; align-items: center; justify-content: space-between; gap: 10px;
     background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
@@ -200,6 +228,39 @@
   .kmKey { font-weight: 600; color: var(--ink); }
   .kmNone { color: var(--dim); }
   [hidden] { display: none !important; }
+
+  /* "open on your phone" bar (shown on the Mac when serving on the LAN) */
+  .phoneUrl { display: flex; align-items: center; gap: 8px; background: var(--card);
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 14px;
+    font-family: var(--font-mono); font-size: 12px; color: var(--dim); }
+  .phoneUrl code { font-size: 12px; color: var(--ink); background: var(--field);
+    padding: 2px 7px; border-radius: 5px; word-break: break-all; user-select: all; }
+
+  /* phones — tighten the layout and let rows stack */
+  @media (max-width: 560px) {
+    body { padding: 18px 12px 56px; }
+    .panel { padding: 16px 14px; }
+    .grid2 { flex-wrap: wrap; }
+    .transport { flex-wrap: wrap; }
+    .camHead { flex-wrap: wrap; align-items: stretch; }
+    #saveBtn { flex: 1 1 100%; }
+    .recordBtn { flex: 1; }
+    .liveVal { font-size: 21px; }
+    .dropZone { flex-direction: column; text-align: center; }
+    .savePath { flex-wrap: wrap; }
+    .tapBpm { font-size: 38px; }
+    /* three tap-tempo stats don't fit side by side — half/double takes its own row */
+    .tapGrid { grid-template-columns: 1fr 1fr; }
+    .tapCell:nth-child(3) { grid-column: 1 / -1; border-left: none; border-top: 1px solid var(--line); }
+  }
+  /* iOS zooms the whole page when a focused control's text is under 16px */
+  @supports (-webkit-touch-callout: none) {
+    select, input[type=number] { font-size: 16px; }
+  }
+  /* Controls that act on the Mac itself (Finder, the strip window, drag-to-DAW)
+     make no sense from an iPhone/iPad — hide them there. */
+  body.ios .overlaySwitch, body.ios .grip, body.ios .reveal,
+  body.ios .savePathBtns { display: none !important; }
 </style>
 </head>
 <body>
@@ -209,6 +270,8 @@
     <span class="statchip" id="streamInfo"></span>
     <button id="closePanel" class="ghostBtn" hidden style="margin-left:12px">✕ Close</button>
   </div>
+
+  <div class="phoneUrl" id="phoneUrl" hidden>📱 On your iPhone (same Wi-Fi): <code id="phoneUrlText"></code></div>
 
   <!-- control panel -->
   <div class="panel">
@@ -329,6 +392,26 @@
     </div>
   </div>
 
+  <!-- tap tempo -->
+  <h2>Tap tempo</h2>
+  <div class="panel">
+    <div class="row" id="tapControls">
+      <button id="tapArm" class="ir-btn ir-btn--dark">Start tapping</button>
+      <button id="tapReset" class="ghostBtn">Reset</button>
+      <span class="meta" id="tapHint"></span>
+    </div>
+    <div class="tapPad" id="tapPad">
+      <div class="tapBpm"><span id="tapBpm">—</span><span class="tapUnit">BPM</span></div>
+      <div class="tapSub" id="tapSub">tap the pad, or start tapping to use any key</div>
+      <div class="tapDots" id="tapDots"><span></span><span></span><span></span><span></span></div>
+    </div>
+    <div class="tapGrid">
+      <div class="tapCell"><span class="dvLabel">Taps</span><span class="tapNum" id="tapCount">0</span></div>
+      <div class="tapCell"><span class="dvLabel">Steadiness</span><span class="tapNum" id="tapJitter">—</span></div>
+      <div class="tapCell"><span class="dvLabel">Half / double</span><span class="tapNum" id="tapHalf">—</span></div>
+    </div>
+  </div>
+
   <!-- captures -->
   <h2>Captures</h2>
   <div class="savePath" id="savePath" hidden>
@@ -377,6 +460,14 @@
 const $ = IR.$;
 const api = IR.api, toast = IR.toast, fmtClock = IR.fmtClock;
 let running = false, recording = false, smoothPeaks = [];
+let lastLiveBpm = null;        // newest server-side tempo estimate, for the tap tempo compare
+
+// iPhone/iPad client (iPadOS reports itself as a Mac, but with touch points).
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+               (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+// Viewing from another device (the Mac serves on the LAN)?
+const IS_REMOTE = !["127.0.0.1", "localhost"].includes(location.hostname);
+if (IS_IOS) document.body.classList.add("ios");
 
 const BUF_OPTS = [30, 60, 120, 300];
 const bufferSeconds = () => +($("seconds").value) || 60;
@@ -465,6 +556,7 @@ function setRunningUI(status) {
 }
 
 function resetLive() {
+  lastLiveBpm = null;
   $("liveKey").textContent = "—"; $("liveKeySub").textContent = "listening…";
   $("liveBpm").textContent = "—"; $("liveBpmUnit").textContent = ""; $("liveBpmSub").textContent = "listening…";
   $("liveCents").textContent = "—"; $("liveCentsUnit").textContent = ""; $("liveCentsSub").textContent = "listening…";
@@ -483,6 +575,7 @@ function updateLive(analysis) {
     keyCard.classList.toggle("locked", f.keyLocked);
   }
   if (f.bpm) {
+    lastLiveBpm = +f.bpm;
     $("liveBpm").textContent = f.bpm;
     $("liveBpmUnit").textContent = "BPM";
     $("liveBpmSub").textContent = f.bpmLocked ? "● LOCKED" : "estimating…";
@@ -666,7 +759,17 @@ async function loadCameras() {
   const sel = $("cameraDevice");
   if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices || !cam.pickVideoMime()) {
     $("cameraToggle").disabled = true;
-    sel.innerHTML = '<option>Camera not supported</option>';
+    if (IS_REMOTE && !window.isSecureContext) {
+      // Browsers only allow camera access on secure origins, and the LAN
+      // dashboard is plain http — so the camera buffer stays a Mac feature.
+      sel.innerHTML = '<option>Not available over the network</option>';
+      document.querySelector(".camHint").textContent =
+        "Browsers block camera access over a plain-HTTP network connection, " +
+        "so the camera buffer runs on the Mac's dashboard or strip. " +
+        "Everything else here works from this device.";
+    } else {
+      sel.innerHTML = '<option>Camera not supported</option>';
+    }
     return;
   }
   let cams = [];
@@ -786,6 +889,11 @@ async function loadInfo() {
     const info = await api("/api/info");
     $("savePathDir").textContent = info.captures_dir;
     $("savePath").hidden = false;
+    // On the Mac, surface the address a phone on the same Wi-Fi should open.
+    if (info.lan_url && !IS_REMOTE) {
+      $("phoneUrlText").textContent = info.lan_url;
+      $("phoneUrl").hidden = false;
+    }
   } catch (e) { /* non-critical */ }
 }
 
@@ -810,13 +918,110 @@ $("saveBtn").onclick = async () => {
   } catch (e) { toast(e.message, true); }
 };
 
-// Space bar = save, when not focused on a control
+// Space bar = save, when not focused on a control. Suspended while the tap
+// tempo pad is armed — there every key is a tap.
 document.addEventListener("keydown", e => {
+  if (tapArmed) return;
   if (e.code === "Space" && running && !["SELECT", "BUTTON", "AUDIO", "INPUT"].includes(document.activeElement.tagName)) {
     e.preventDefault();
     $("saveBtn").click();
   }
 });
+
+// ---- tap tempo ----
+// Arm it and any key or click anywhere on the page counts as a beat; the pad
+// itself always taps. A gap longer than TAP_GAP starts a fresh count, so you can
+// stop, think, and tap a new tempo without resetting by hand.
+const TAP_GAP = 3000;          // ms of silence that ends a run of taps
+const TAP_WINDOW = 12;         // intervals averaged (most recent)
+// Clicks on these keep doing their own job instead of counting as a tap.
+const TAP_IGNORE = "#tapControls, select, input, audio, video, a";
+let tapArmed = false, tapTimes = [], tapBeat = 0, tapHitTimer = 0;
+
+function tapIntervals() {
+  const iv = [];
+  for (let i = 1; i < tapTimes.length; i++) iv.push(tapTimes[i] - tapTimes[i - 1]);
+  return iv.slice(-TAP_WINDOW);
+}
+
+function registerTap() {
+  const now = performance.now();
+  if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > TAP_GAP) { tapTimes = []; tapBeat = 0; }
+  tapTimes.push(now);
+  if (tapTimes.length > TAP_WINDOW + 1) tapTimes.shift();
+  tapBeat = tapTimes.length === 1 ? 0 : (tapBeat + 1) % 4;
+  flashTap();
+  renderTap();
+}
+
+function flashTap() {
+  const pad = $("tapPad");
+  pad.classList.add("hit");
+  clearTimeout(tapHitTimer);
+  tapHitTimer = setTimeout(() => pad.classList.remove("hit"), 110);
+  [...$("tapDots").children].forEach((d, i) => d.classList.toggle("on", i === tapBeat && tapTimes.length > 0));
+}
+
+function renderTap() {
+  const iv = tapIntervals();
+  $("tapCount").textContent = tapTimes.length;
+  if (!iv.length) {
+    $("tapPad").classList.remove("has");
+    $("tapBpm").textContent = "—";
+    $("tapSub").textContent = tapArmed ? "keep tapping — one more beat" : "tap the pad, or start tapping to use any key";
+    $("tapJitter").textContent = "—";
+    $("tapHalf").textContent = "—";
+    return;
+  }
+  const mean = iv.reduce((a, b) => a + b, 0) / iv.length;
+  const bpm = 60000 / mean;
+  const sd = Math.sqrt(iv.reduce((a, b) => a + (b - mean) ** 2, 0) / iv.length);
+  $("tapPad").classList.add("has");
+  $("tapBpm").textContent = bpm.toFixed(1);
+  $("tapJitter").innerHTML = "±" + Math.round(sd) + "<small>ms</small>";
+  $("tapHalf").innerHTML = (bpm / 2).toFixed(1) + " <small>/</small> " + (bpm * 2).toFixed(1);
+  // Sub-line: settle first, then compare against the live estimate when there is one.
+  if (iv.length < 3) {
+    $("tapSub").textContent = "settling — " + (4 - tapTimes.length) + " more tap" + (tapTimes.length === 3 ? "" : "s");
+  } else if (lastLiveBpm) {
+    const d = bpm - lastLiveBpm;
+    $("tapSub").textContent = "live estimate " + lastLiveBpm.toFixed(1) + " BPM · " +
+      (Math.abs(d) < 0.5 ? "matched" : (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1));
+  } else {
+    $("tapSub").textContent = "averaging last " + iv.length + " beat" + (iv.length === 1 ? "" : "s") +
+      (sd < 25 ? " · steady" : "");
+  }
+}
+
+function setTapArmed(on) {
+  tapArmed = on;
+  $("tapArm").textContent = on ? "Stop tapping" : "Start tapping";
+  $("tapArm").classList.toggle("live", on);
+  $("tapPad").classList.toggle("armed", on);
+  $("tapHint").textContent = on
+    ? (IS_IOS ? "Tap anywhere on the page · Stop when done"
+              : "Tap any key or click anywhere · Esc or Stop when done")
+    : (IS_IOS ? "Tap the pad, or start to count taps anywhere on the page."
+              : "Tap the pad, or start and use any key. Space-to-save pauses while armed.");
+}
+
+$("tapArm").onclick = () => setTapArmed(!tapArmed);
+$("tapReset").onclick = () => { tapTimes = []; tapBeat = 0; renderTap(); flashTap(); };
+$("tapPad").addEventListener("pointerdown", (e) => { e.preventDefault(); if (!tapArmed) registerTap(); });
+
+// While armed, the whole page is the tap pad.
+document.addEventListener("pointerdown", (e) => {
+  if (!tapArmed || e.target.closest(TAP_IGNORE)) return;
+  registerTap();
+});
+document.addEventListener("keydown", (e) => {
+  if (!tapArmed) return;
+  if (e.key === "Escape") { setTapArmed(false); return; }
+  if (e.repeat || ["Shift", "Control", "Alt", "Meta", "CapsLock"].includes(e.key)) return;
+  e.preventDefault();
+  registerTap();
+});
+setTapArmed(false);
 
 // ---- drag-and-drop file key/tempo analyzer ----
 const dropZone = $("dropZone"), fileInput = $("fileInput");

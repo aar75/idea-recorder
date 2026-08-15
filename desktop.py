@@ -73,11 +73,16 @@ def _patch_cocoa_for_camera():
     cocoa.BrowserView.AppDelegate = IRAppDelegate
 
 
-def start_server(port):
+def start_server(port, lan=False):
     """Run the existing app.py request handler in a background thread."""
     ir_app.load_config()
     ir_app.CAPTURES.mkdir(parents=True, exist_ok=True)
-    server = ThreadingHTTPServer(("127.0.0.1", port), ir_app.Handler)
+    host = "0.0.0.0" if lan else "127.0.0.1"
+    server = ThreadingHTTPServer((host, port), ir_app.Handler)
+    if lan:
+        ip = ir_app.lan_ip()
+        if ip:
+            ir_app.LAN_URL = f"http://{ip}:{port}"   # shown in the dashboard UI
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 
@@ -156,9 +161,12 @@ def main():
                         help="open the floating widget instead of the strip")
     parser.add_argument("--dashboard", action="store_true",
                         help="open the full web dashboard window")
+    parser.add_argument("--no-lan", action="store_true",
+                        help="serve on this Mac only (skip the local-network "
+                             "URL an iPhone/iPad would use)")
     args = parser.parse_args()
 
-    start_server(args.port)
+    start_server(args.port, lan=not args.no_lan)
     bridge = Bridge(args.port)
     base = f"http://127.0.0.1:{args.port}"
     sw, sh = screen_size()

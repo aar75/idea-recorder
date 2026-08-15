@@ -6,6 +6,8 @@
 cd "${0:a:h}" || exit 1
 
 PORT="${PORT:-8766}"   # override with: PORT=8770 open "Idea Recorder.command"
+LAN="${LAN:-1}"        # 1 = also reachable from your iPhone/iPad on the same
+                       # Wi-Fi; LAN=0 open "Idea Recorder.command" for this-Mac-only
 PY=".venv/bin/python"
 
 # Already running? Don't start a second server (it would fail to bind the port).
@@ -68,7 +70,13 @@ fi
 
 echo "Idea Recorder is running."
 echo "If the browser doesn't open, go to: http://127.0.0.1:$PORT/"
+if [[ "$LAN" = "1" ]]; then
+  IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)
+  [[ -n "$IP" ]] && echo "On your iPhone/iPad (same Wi-Fi): http://$IP:$PORT/"
+fi
 echo "Leave this window open while recording. Press Ctrl+C or close it to quit."
 echo
 
-exec "$PY" app.py --port "$PORT"
+LAN_FLAG=()
+[[ "$LAN" = "1" ]] && LAN_FLAG=(--lan)
+exec "$PY" app.py --port "$PORT" "${LAN_FLAG[@]}"

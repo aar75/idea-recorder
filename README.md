@@ -117,7 +117,7 @@ inside, and the launcher sets everything up on first run.
 To rebuild the bundle after changing the app:
 
 ```sh
-cd ~/Coding/idea-recorder
+cd ~/Documents/Coding/idea-recorder
 cp app.py idea_recorder.py live_analysis.py "dist/Idea Recorder/"
 cp static/index.html "dist/Idea Recorder/static/"
 cd dist && rm -f Idea-Recorder-mac.zip \
@@ -179,8 +179,9 @@ copy needs **right-click → Open** once. Standalone-app captures are saved to
 ## Web UI (from the terminal)
 
 ```sh
-cd ~/Coding/idea-recorder
+cd ~/Documents/Coding/idea-recorder
 ./ui            # then open http://127.0.0.1:8766
+./ui --lan      # also reachable from an iPhone/iPad on the same Wi-Fi
 ```
 
 Pick your interface, choose a buffer length, hit **Start listening**. The
@@ -189,10 +190,34 @@ level meter confirms audio is coming in. Click the big red button (or press
 playback and delete. Recording happens in the Python server, so the browser
 tab can be closed and reopened without interrupting the buffer.
 
+## Use it from your iPhone or iPad
+
+The audio always flows through the Mac (that's where the interface is
+plugged in), but the whole dashboard works from a phone on the same Wi-Fi —
+start/stop listening, save the buffer, continuous record, the tuner, the
+file analyzer, and playing/downloading/deleting captures.
+
+1. Launch normally (double-click **`Idea Recorder.command`**, or `./ui --lan`).
+   Serving on the network is on by default for the launcher; opt out with
+   `LAN=0 open "Idea Recorder.command"`.
+2. The Mac's dashboard (and the Terminal window) show a **📱 On your iPhone**
+   address like `http://192.168.1.23:8766` — open it in Safari on the phone.
+3. Optional: tap **Share → Add to Home Screen** for a full-screen,
+   app-like icon.
+
+Notes:
+
+- Mac-only controls (reveal in Finder, the on-screen strip toggle,
+  drag-to-DAW) are hidden on iOS; downloads land in the Files app.
+- The **camera buffer** stays on the Mac: browsers only allow camera access
+  on secure (HTTPS) origins, and the LAN dashboard is plain HTTP.
+- Anyone on your Wi-Fi network can reach the dashboard while `--lan` is on;
+  on your home/studio network that's normally fine.
+
 ## Command line
 
 ```sh
-cd ~/Coding/idea-recorder
+cd ~/Documents/Coding/idea-recorder
 
 # See which inputs are available (plug in your interface first)
 ./record --list-devices

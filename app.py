@@ -16,6 +16,7 @@ import platform
 import queue
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -46,6 +47,23 @@ STATIC = RES / "static"
 SAFE_NAME = re.compile(r"^[\w.-]+\.(wav|webm|mp4)$")
 VIDEO_TYPES = {".webm": "video/webm", ".mp4": "video/mp4"}
 CONFIG = Path.home() / ".idea_recorder.json"
+# When serving on the local network (--lan), the URL a phone/tablet on the
+# same Wi-Fi should open. Stays None in this-Mac-only mode.
+LAN_URL = None
+
+
+def lan_ip():
+    """This Mac's LAN address, via the interface a default route would use.
+
+    connect() on a UDP socket sends no packets — it just makes the OS pick
+    the outbound interface, whose address is what a phone needs to reach us.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("192.0.2.1", 1))   # TEST-NET address; nothing is sent
+            return s.getsockname()[0]
+    except OSError:
+        return None
 
 
 def capture_ctype(name):
@@ -625,7 +643,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/tuner/status":
             self._json(tuner.status())
         elif path == "/api/info":
-            self._json({"captures_dir": str(CAPTURES)})
+            self._json({"captures_dir": str(CAPTURES), "lan_url": LAN_URL})
         elif path == "/api/captures":
             self._json(list_captures())
         elif path.startswith("/captures/"):
@@ -816,16 +834,29 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    global LAN_URL
     parser = argparse.ArgumentParser(description="Idea recorder web UI")
     parser.add_argument("-p", "--port", type=int, default=8766)
     parser.add_argument("--open", action="store_true",
                         help="open the UI in a browser once the server is up")
+    parser.add_argument("--lan", action="store_true",
+                        help="also serve on the local network, so an iPhone/iPad "
+                             "on the same Wi-Fi can open the dashboard")
     args = parser.parse_args()
     load_config()
     CAPTURES.mkdir(parents=True, exist_ok=True)
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    host = "0.0.0.0" if args.lan else "127.0.0.1"
+    server = ThreadingHTTPServer((host, args.port), Handler)
     url = f"http://127.0.0.1:{args.port}"
     print(f"The Dashboard UI: {url}")
+    if args.lan:
+        ip = lan_ip()
+        if ip:
+            LAN_URL = f"http://{ip}:{args.port}"
+            print(f"On your iPhone/iPad (same Wi-Fi): {LAN_URL}")
+        else:
+            print("Serving on the local network, but couldn't detect this "
+                  "Mac's address — check System Settings → Wi-Fi.")
 
     # As a bundled .app there's no terminal to open the browser, so do it here.
     if args.open or FROZEN:
